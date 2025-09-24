@@ -1,5 +1,5 @@
 
-# 中文筆劃輸入法
+# 中文筆劃輸入法 ChineseStrokeIME Beta 6
 
 
 ## 📖 項目簡介
