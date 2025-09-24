@@ -1,5 +1,6 @@
-// main.cpp 測試版 6.0 - 配色自訂+全功能刷新+候選字字體版
+// OptimizedChineseStrokeIME.cpp - 優化版中文筆劃輸入法
 #include <windows.h>
+#include <shellapi.h>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -7,22 +8,162 @@
 #include <map>
 #include <algorithm>
 #include <ctime>
+#include <cmath>
 
 using namespace std;
 
 // ========== 全域變數 ==========
 HWND g_hWnd = NULL;
+HWND g_hInputWnd = NULL;
 HWND g_hCandWnd = NULL;
 HHOOK g_hKeyboardHook = NULL;
+NOTIFYICONDATA g_nid = {0};
+bool g_isMinimized = false;
+
+
+
+// ========== 多螢幕支援 ==========
+struct MonitorInfo {
+    HMONITOR hMonitor;
+    RECT rect;
+    RECT workArea;
+    bool isPrimary;
+};
+
+vector<MonitorInfo> g_monitors;
+
+BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
+    MONITORINFOEX mi;
+    mi.cbSize = sizeof(MONITORINFOEX);
+    
+    if (GetMonitorInfo(hMonitor, &mi)) {
+        MonitorInfo info;
+        info.hMonitor = hMonitor;
+        info.rect = mi.rcMonitor;
+        info.workArea = mi.rcWork;
+        info.isPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0;
+        
+        g_monitors.push_back(info);
+    }
+    return TRUE;
+}
+
+void update_monitor_info() {
+    g_monitors.clear();
+    EnumDisplayMonitors(NULL, NULL, MonitorEnumProc, 0);
+}
+
+MonitorInfo get_monitor_from_point(POINT pt) {
+    HMONITOR hMon = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+    
+    for (const auto& monitor : g_monitors) {
+        if (monitor.hMonitor == hMon) {
+            return monitor;
+        }
+    }
+    
+    // 回退到主螢幕
+    for (const auto& monitor : g_monitors) {
+        if (monitor.isPrimary) {
+            return monitor;
+        }
+    }
+    
+    return g_monitors.empty() ? MonitorInfo{} : g_monitors[0];
+}
+
+bool is_point_in_any_monitor(POINT pt) {
+    for (const auto& monitor : g_monitors) {
+        if (pt.x >= monitor.rect.left && pt.x <= monitor.rect.right &&
+            pt.y >= monitor.rect.top && pt.y <= monitor.rect.bottom) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+bool is_extended_mode() {
+    update_monitor_info();
+    return g_monitors.size() > 1;
+}
+
+// 安全的螢幕資訊獲取函數
+RECT get_safe_primary_screen() {
+    RECT safeRect = {0, 0, 1920, 1080}; // 預設安全值
+    
+    update_monitor_info();
+    
+    if (g_monitors.size() <= 1) {
+        // 鏡像模式：使用系統工作區域
+        if (SystemParametersInfo(SPI_GETWORKAREA, 0, &safeRect, 0)) {
+            return safeRect;
+        }
+    } else {
+        // 延伸模式：使用多螢幕邏輯
+        for (const auto& monitor : g_monitors) {
+            if (monitor.isPrimary) {
+                return monitor.workArea;
+            }
+        }
+    }
+    
+    // 回退方案：使用GetSystemMetrics
+    safeRect.right = GetSystemMetrics(SM_CXSCREEN);
+    safeRect.bottom = GetSystemMetrics(SM_CYSCREEN);
+    
+    return safeRect;
+}
+
+// ========== 增強的螢幕模式檢測 ==========
+// 更精確的鏡像模式檢測
+bool is_truly_mirrored_mode() {
+    update_monitor_info();
+    
+    if (g_monitors.size() <= 1) return true;
+    
+    // 檢查是否所有螢幕都有相同的解析度（鏡像模式特徵）
+    if (g_monitors.size() >= 2) {
+        RECT firstRect = g_monitors[0].rect;
+        for (size_t i = 1; i < g_monitors.size(); i++) {
+            RECT currentRect = g_monitors[i].rect;
+            if ((currentRect.right - currentRect.left) != (firstRect.right - firstRect.left) ||
+                (currentRect.bottom - currentRect.top) != (firstRect.bottom - firstRect.top)) {
+                return false; // 不同解析度，確實是延伸模式
+            }
+        }
+        return true; // 相同解析度，可能是鏡像模式
+    }
+    
+    return false;
+}
+
+bool is_mirrored_mode() {
+    return is_truly_mirrored_mode();
+}
+
+// 座標有效性檢查
+bool is_coordinate_valid_in_current_mode(int x, int y) {
+    update_monitor_info();
+    
+    for (const auto& monitor : g_monitors) {
+        if (x >= monitor.workArea.left && x <= monitor.workArea.right &&
+            y >= monitor.workArea.top && y <= monitor.workArea.bottom) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+// 輸入系統
 wstring g_input = L"";
 vector<wstring> g_candidates;
 vector<wstring> g_candidateCodes;
-void auto_apply_3plus3_mode();
-void suggest_3plus3_mode();
 map<wstring, vector<wstring>> g_dict;
 map<wstring, vector<wstring>> g_punct;
 
-// 優化：增強的頻率系統
+// 增強的頻率系統
 struct WordInfo {
     int frequency;
     time_t lastUsed;
@@ -31,7 +172,6 @@ struct WordInfo {
 };
 
 map<wstring, WordInfo> g_wordFreq;
-map<wstring, vector<wstring>> g_contextLearning;
 wstring g_lastSelected = L"";
 
 int g_selected = 0;
@@ -43,58 +183,92 @@ bool g_chineseMode = true;
 bool g_isInputting = false;
 bool g_inputError = false;
 bool g_showPunctMenu = false;
+bool g_isToolbarDragging = false;
 
-// Shift鍵切換模式的狀態追蹤
+// Shift鍵狀態
 bool g_shiftPressed = false;
 bool g_shiftUsedForCombo = false;
 DWORD g_shiftPressTime = 0;
 
-// 介面相關變數 - 新增刷新按鈕
+// UI元素位置（與附件代碼保持一致）
+RECT g_modeIndicatorRect = {0};
+RECT g_statusIndicatorRect = {0};
+RECT g_menuButtonRect = {0};
+RECT g_restoreButtonRect = {0};
+RECT g_minimizeButtonRect = {0};
 RECT g_closeButtonRect = {0};
-RECT g_modeButtonRect = {0};
-RECT g_creditsButtonRect = {0};
-RECT g_refreshButtonRect = {0};
+
+bool g_modeIndicatorHover = false;
+bool g_menuButtonHover = false;
+bool g_restoreButtonHover = false;
+bool g_minimizeButtonHover = false;
 bool g_closeButtonHover = false;
-bool g_modeButtonHover = false;
-bool g_creditsButtonHover = false;
-bool g_refreshButtonHover = false;
+
 vector<wstring> g_punctCandidates;
-bool g_isDragging = false;
-POINT g_dragStartPoint = {0};
 
-// 修正：完整的介面設定變數 - 分離主視窗和候選字視窗的配色
-COLORREF g_bgColor = RGB(240,240,240);                          // 主視窗背景色
-COLORREF g_textColor = RGB(0,0,0);                               // 主視窗文字顏色
-COLORREF g_selColor = RGB(0,120,215);                            // 主視窗選擇顏色
-COLORREF g_selBgColor = RGB(230,240,250);                        // 主視窗選擇背景色
-COLORREF g_errorColor = RGB(220,50,50);                          // 錯誤顏色
-COLORREF g_closeButtonColor = RGB(220,50,50);                    // 關閉按鈕顏色
-COLORREF g_closeButtonHoverColor = RGB(255,70,70);               // 關閉按鈕懸停顏色
-COLORREF g_modeButtonColor = RGB(100,50,200);                    // 模式按鈕顏色
-COLORREF g_modeButtonHoverColor = RGB(120,70,220);               // 模式按鈕懸停顏色
-COLORREF g_creditsButtonColor = RGB(200,150,50);                 // 製作群按鈕顏色
-COLORREF g_creditsButtonHoverColor = RGB(220,170,70);            // 製作群按鈕懸停顏色
-COLORREF g_refreshButtonColor = RGB(50,150,50);                  // 刷新按鈕顏色
-COLORREF g_refreshButtonHoverColor = RGB(70,170,70);             // 刷新按鈕懸停顏色
+// 優化的位置管理
+struct Position {
+    int x, y;
+    bool isValid;
+    Position() : x(0), y(0), isValid(false) {}
+    Position(int _x, int _y) : x(_x), y(_y), isValid(true) {}
+};
 
-// 新增：候選字視窗專用配色變數
-COLORREF g_candidateBackgroundColor = RGB(255,255,255);          // 候選字視窗背景色
-COLORREF g_candidateTextColor = RGB(0,0,0);                      // 候選字文字顏色
-COLORREF g_selectedCandidateBackgroundColor = RGB(230,240,250);  // 選中候選字背景色
-COLORREF g_selectedCandidateTextColor = RGB(0,120,215);          // 選中候選字文字顏色
+struct ScreenModePositions {
+    Position extendedModePos;    // 延伸模式位置
+    Position mirroredModePos;    // 鏡像模式位置
+    bool hasExtendedPos = false;
+    bool hasMirroredPos = false;
+};
 
-int g_fontSize = 16;                                             // 主視窗字體
-wstring g_fontName = L"Microsoft JhengHei";                     // 主視窗字體名稱
-int g_candidateFontSize = 18;                                    // 候選字字體大小
-wstring g_candidateFontName = L"Microsoft JhengHei";            // 候選字字體名稱
-int g_windowWidth = 580;
-int g_windowHeight = 70;
-int g_candidateWidth = 500;
-int g_candidateHeight = 320;
+Position g_toolbarPos;
+Position g_userInputPos;
+Position g_userCandPos;
+bool g_useUserPosition = false;
 
-// 狀態信息
-wstring g_statusInfo = L"就緒";
-int g_dictSize = 0;
+ScreenModePositions g_screenModePositions;
+
+
+// 配色設定（與附件代碼保持一致）
+COLORREF g_toolbarBgColor = RGB(240,240,240);
+COLORREF g_toolbarBorderColor = RGB(160,160,160);
+COLORREF g_modeActiveColor = RGB(0,120,215);
+COLORREF g_modeInactiveColor = RGB(160,160,160);
+COLORREF g_statusReadyColor = RGB(0,150,0);
+COLORREF g_statusErrorColor = RGB(220,50,50);
+COLORREF g_statusInputColor = RGB(255,165,0);
+COLORREF g_buttonHoverColor = RGB(200,200,200);
+COLORREF g_closeButtonColor = RGB(180,180,180);
+
+COLORREF g_candidateBackgroundColor = RGB(255,255,255);
+COLORREF g_candidateTextColor = RGB(0,0,0);
+COLORREF g_selectedCandidateBackgroundColor = RGB(51,153,255);
+COLORREF g_selectedCandidateTextColor = RGB(255,255,255);
+COLORREF g_candidateBorderColor = RGB(128,128,128);
+
+COLORREF g_inputBackgroundColor = RGB(255,255,255);
+COLORREF g_inputTextColor = RGB(0,0,0);
+COLORREF g_inputBorderColor = RGB(128,128,128);
+
+int g_candidateFontSize = 14;
+wstring g_candidateFontName = L"Microsoft JhengHei";
+int g_inputFontSize = 14;
+wstring g_inputFontName = L"Microsoft JhengHei";
+
+wstring g_statusInfo = L"優化版輸入法已就緒";
+
+// 視窗大小常數（與附件代碼保持一致）
+const int TOOLBAR_WIDTH = 250;
+const int TOOLBAR_HEIGHT = 35;
+const int MIN_INPUT_WIDTH = 200;
+const int MAX_INPUT_WIDTH = 600;
+const int MIN_CAND_WIDTH = 300;
+const int INPUT_WINDOW_HEIGHT = 40;
+const int WINDOW_SPACING = 2;
+const int PAGE_BUTTON_HEIGHT = 20; // 新增：分頁按鈕高度
+
+// 配置參數
+int g_verticalOffset = 25;
 
 // ========== 工具函數 ==========
 wstring utf8_to_wstr(const string& str) {
@@ -120,308 +294,439 @@ void update_status(const wstring& msg) {
     if (g_hWnd) InvalidateRect(g_hWnd, nullptr, TRUE);
 }
 
-// 顏色解析函數
-COLORREF parse_color_from_string(const string& colorStr) {
-    if (colorStr.empty()) return RGB(0,0,0);
+// ========== 優化的視窗寬度計算 ==========
+int calculate_optimal_window_width() {
+    int baseWidth = MIN_INPUT_WIDTH;
     
-    // 支援 #RRGGBB 格式
-    if (colorStr[0] == '#' && colorStr.length() == 7) {
-        unsigned long rgb = strtoul(colorStr.substr(1).c_str(), nullptr, 16);
-        return RGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+    // 根據輸入長度計算基礎寬度
+    if (!g_input.empty()) {
+        baseWidth = max(baseWidth, 120 + (int)g_input.length() * 16);
     }
     
-    // 支援純16進制格式
-    if (colorStr.length() == 6) {
-        bool isHex = true;
-        for (char c : colorStr) {
-            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))) {
-                isHex = false;
+    // 根據候選字內容計算所需寬度
+    if (!g_candidates.empty()) {
+        int maxContentWidth = 0;
+        for (size_t i = 0; i < min(g_candidates.size(), (size_t)CANDIDATES_PER_PAGE); ++i) {
+            int contentWidth = 60; // 序號和間距
+            contentWidth += (int)g_candidates[i].length() * 18; // 候選字
+            
+            if (i < g_candidateCodes.size()) {
+                contentWidth += 30 + (int)g_candidateCodes[i].length() * 10; // 編碼
+            }
+            
+            // 學習狀態標記
+            if (g_wordFreq.find(g_candidates[i]) != g_wordFreq.end()) {
+                contentWidth += 30;
+            }
+            
+            maxContentWidth = max(maxContentWidth, contentWidth);
+        }
+        baseWidth = max(baseWidth, maxContentWidth + 20);
+    }
+    
+    // 確保分頁控制有足夠空間
+    if (g_totalPages > 1) {
+        baseWidth = max(baseWidth, 150);
+    }
+    
+    
+    return max(MIN_CAND_WIDTH, min(baseWidth, MAX_INPUT_WIDTH));
+}
+
+// ========== 優化的候選字視窗高度計算 ==========
+int calculate_candidate_window_height() {
+    if (!g_showCand || g_candidates.empty()) return 0;
+    
+    int lineHeight = g_candidateFontSize + 8;
+    int contentLines = min(CANDIDATES_PER_PAGE, (int)g_candidates.size());
+    int baseHeight = 16; // 上下邊距
+    
+
+    
+    // 候選字列表高度
+    baseHeight += contentLines * lineHeight;
+    
+    // 分頁控制高度
+    if (g_totalPages > 1) {
+        baseHeight += PAGE_BUTTON_HEIGHT + 10;
+    }
+    
+    return baseHeight;
+}
+
+// ========== 多螢幕兼容的定位邏輯 ==========
+Position get_current_mouse_position() {
+    Position pos;
+    GetCursorPos((POINT*)&pos);
+    
+    // 檢查滑鼠是否在任何螢幕範圍內
+    if (!is_point_in_any_monitor({pos.x, pos.y})) {
+        // 如果不在任何螢幕內，使用主螢幕中央
+        for (const auto& monitor : g_monitors) {
+            if (monitor.isPrimary) {
+                pos.x = monitor.rect.left + (monitor.rect.right - monitor.rect.left) / 2;
+                pos.y = monitor.rect.top + (monitor.rect.bottom - monitor.rect.top) / 2;
                 break;
             }
         }
-        if (isHex) {
-            unsigned long rgb = strtoul(colorStr.c_str(), nullptr, 16);
-            return RGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+    }
+    
+    pos.y += g_verticalOffset;
+    pos.isValid = true;
+    
+    return pos;
+}
+
+// ========== 多螢幕兼容的統一視窗定位 ==========
+void position_windows_optimized() {
+    if (!g_isInputting) return;
+    
+    update_monitor_info();
+    
+    int unifiedWidth = calculate_optimal_window_width();
+    int candHeight = calculate_candidate_window_height();
+    
+    Position basePos;
+    
+    if (g_useUserPosition && g_userInputPos.isValid) {
+        basePos = g_userInputPos;
+    } else {
+        basePos = get_current_mouse_position();
+        
+        RECT screenRect;
+        
+        // 根據螢幕模式使用不同的邊界檢查策略
+        if (is_mirrored_mode()) {
+            // 鏡像模式：使用安全的螢幕區域
+            screenRect = get_safe_primary_screen();
+        } else {
+            // 延伸模式：使用多螢幕邏輯
+            MonitorInfo currentMonitor = get_monitor_from_point({basePos.x, basePos.y});
+            screenRect = currentMonitor.workArea;
+        }
+        
+        // 統一的邊界調整邏輯
+        int totalHeight = INPUT_WINDOW_HEIGHT + WINDOW_SPACING + candHeight;
+        
+        if (basePos.x + unifiedWidth > screenRect.right - 10) {
+            basePos.x = screenRect.right - unifiedWidth - 10;
+        }
+        if (basePos.x < screenRect.left + 10) {
+            basePos.x = screenRect.left + 10;
+        }
+        
+        if (basePos.y + totalHeight > screenRect.bottom - 30) {
+            int newY = basePos.y - totalHeight - g_verticalOffset;
+            if (newY >= screenRect.top + 10) {
+                basePos.y = newY;
+            } else {
+                basePos.y = screenRect.top + (screenRect.bottom - screenRect.top - totalHeight) / 2;
+            }
+        }
+        if (basePos.y < screenRect.top + 10) {
+            basePos.y = screenRect.top + 10;
         }
     }
     
-    return RGB(0,0,0);
-}
-
-// 新增：標點符號判斷函數
-bool is_punctuation(const wstring& word) {
-    if (word.empty()) return false;
-    
-    // 定義完整的標點符號字元集（包含中英文標點符號）
-    wstring punctuations = L"，。？！：；（）「」【】『』《》〈〉、·－—……""''｜＼／～＿￥％＃＠｛｝"
-                          L",.?!:;()[]{}\"'<>/\\-_@#$%^&*+=|`~"
-                          L"　"; // 包含全形空格
-    
-    // 檢查字詞是否只包含標點符號或空白字元
-    for (wchar_t ch : word) {
-        // 如果是空白字元
-        if (ch == L' ' || ch == L'\t' || ch == L'\n' || ch == L'\r' || ch == L'　') {
-            continue;
-        }
-        // 如果不是標點符號，則返回false
-        if (punctuations.find(ch) == wstring::npos) {
-            return false;
-        }
+    // 定位字碼輸入視窗
+    if (g_hInputWnd) {
+        SetWindowPos(g_hInputWnd, HWND_TOPMOST, 
+                     basePos.x, basePos.y,
+                     unifiedWidth, INPUT_WINDOW_HEIGHT,
+                     SWP_NOACTIVATE | SWP_SHOWWINDOW);
+// 已經在代碼中處理了這個問題
+        InvalidateRect(g_hInputWnd, nullptr, TRUE);
     }
-    return true;  // 全部都是標點符號或空白字元
+    
+    // 定位候選字視窗（固定在字碼視窗正下方）
+    if (g_hCandWnd && g_showCand && candHeight > 0) {
+        int candY = basePos.y + INPUT_WINDOW_HEIGHT + WINDOW_SPACING;
+        
+        SetWindowPos(g_hCandWnd, HWND_TOPMOST,
+                     basePos.x, candY,
+                     unifiedWidth, candHeight,
+                     SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        InvalidateRect(g_hCandWnd, nullptr, TRUE);
+    }
 }
 
-// 修正：完整的配置載入函數，支援所有候選字配色
-void load_interface_config() {
-    ifstream fin("interface_config.ini");
-    if (!fin.is_open()) {
-        update_status(L"使用預設介面配色");
+
+// ========== 配置管理 ==========
+void save_positions() {
+    ofstream config("positions.ini");
+    if (!config.is_open()) return;
+    
+    config << "[Toolbar]" << endl;
+    config << "x=" << g_toolbarPos.x << endl;
+    config << "y=" << g_toolbarPos.y << endl;
+    
+    // 根據當前螢幕模式保存到對應區段
+    if (is_extended_mode()) {
+        config << "[ToolbarExtended]" << endl;
+        config << "x=" << g_toolbarPos.x << endl;
+        config << "y=" << g_toolbarPos.y << endl;
+        
+        // 更新記憶中的位置
+        g_screenModePositions.extendedModePos = g_toolbarPos;
+        g_screenModePositions.hasExtendedPos = true;
+    } else {
+        config << "[ToolbarMirrored]" << endl;
+        config << "x=" << g_toolbarPos.x << endl;
+        config << "y=" << g_toolbarPos.y << endl;
+        
+        // 更新記憶中的位置
+        g_screenModePositions.mirroredModePos = g_toolbarPos;
+        g_screenModePositions.hasMirroredPos = true;
+    }
+    
+    config << "[UserPosition]" << endl;
+    config << "enabled=" << (g_useUserPosition ? "1" : "0") << endl;
+    if (g_useUserPosition) {
+        config << "input_x=" << g_userInputPos.x << endl;
+        config << "input_y=" << g_userInputPos.y << endl;
+        config << "cand_x=" << g_userCandPos.x << endl;
+        config << "cand_y=" << g_userCandPos.y << endl;
+    }
+    
+    config << "[OptimizedPositioning]" << endl;
+    config << "vertical_offset=" << g_verticalOffset << endl;
+    
+    config.close();
+}
+
+
+// 在 load_positions() 函數的最後添加
+void load_positions() {
+    ifstream config("positions.ini");
+    if (!config.is_open()) {
+        // 使用安全的螢幕檢測
+        update_monitor_info();
+        RECT primaryScreen = get_safe_primary_screen();
+        
+        g_toolbarPos.x = (int)max((LONG)(primaryScreen.left + 50), 50L);
+        g_toolbarPos.y = (int)max((LONG)(primaryScreen.bottom - TOOLBAR_HEIGHT - 80), 50L);
+        g_toolbarPos.isValid = true;
+        
+        save_positions();
         return;
     }
     
-    string line;
-    string currentSection = "";
-    
-    while (getline(fin, line)) {
-        // 移除前後空白
-        line.erase(0, line.find_first_not_of(" \t\r\n"));
-        line.erase(line.find_last_not_of(" \t\r\n") + 1);
+    string line, section;
+    while (getline(config, line)) {
+        if (line.empty() || line[0] == '#') continue;
         
-        if (line.empty() || line[0] == '#' || line[0] == ';') continue;
-        
-        // 檢查是否為section
         if (line[0] == '[' && line.back() == ']') {
-            currentSection = line.substr(1, line.length() - 2);
+            section = line.substr(1, line.length() - 2);
             continue;
         }
         
         size_t eq = line.find('=');
-        if (eq != string::npos) {
-            string key = line.substr(0, eq);
-            string value = line.substr(eq + 1);
-            
-            // 移除空白
-            key.erase(0, key.find_first_not_of(" \t"));
-            key.erase(key.find_last_not_of(" \t") + 1);
-            value.erase(0, value.find_first_not_of(" \t"));
-            value.erase(value.find_last_not_of(" \t") + 1);
-            
-            // 處理Colors section
-            if (currentSection == "Colors") {
-                if (key == "background_color") {
-                    g_bgColor = parse_color_from_string(value);
-                } else if (key == "text_color") {
-                    g_textColor = parse_color_from_string(value);
-                } else if (key == "selection_color") {
-                    g_selColor = parse_color_from_string(value);
-                } else if (key == "selection_background_color") {
-                    g_selBgColor = parse_color_from_string(value);
-                } else if (key == "error_color") {
-                    g_errorColor = parse_color_from_string(value);
-                } else if (key == "close_button_color") {
-                    g_closeButtonColor = parse_color_from_string(value);
-                } else if (key == "close_button_hover_color") {
-                    g_closeButtonHoverColor = parse_color_from_string(value);
-                } else if (key == "mode_button_color") {
-                    g_modeButtonColor = parse_color_from_string(value);
-                } else if (key == "mode_button_hover_color") {
-                    g_modeButtonHoverColor = parse_color_from_string(value);
-                } else if (key == "credits_button_color") {
-                    g_creditsButtonColor = parse_color_from_string(value);
-                } else if (key == "credits_button_hover_color") {
-                    g_creditsButtonHoverColor = parse_color_from_string(value);
-                } else if (key == "refresh_button_color") {
-                    g_refreshButtonColor = parse_color_from_string(value);
-                } else if (key == "refresh_button_hover_color") {
-                    g_refreshButtonHoverColor = parse_color_from_string(value);
-                }
-                // 新增：候選字專用配色處理
-                else if (key == "candidate_background_color") {
-                    g_candidateBackgroundColor = parse_color_from_string(value);
-                } else if (key == "candidate_text_color") {
-                    g_candidateTextColor = parse_color_from_string(value);
-                } else if (key == "selected_candidate_background_color") {
-                    g_selectedCandidateBackgroundColor = parse_color_from_string(value);
-                } else if (key == "selected_candidate_text_color") {
-                    g_selectedCandidateTextColor = parse_color_from_string(value);
-                }
-            }
-            // 處理Font section
-            else if (currentSection == "Font") {
-                if (key == "font_size") {
-                    try {
-                        g_fontSize = stoi(value);
-                    } catch (...) {}
-                } else if (key == "font_name") {
-                    g_fontName = utf8_to_wstr(value);
-                } else if (key == "candidate_font_size") {
-                    try {
-                        g_candidateFontSize = stoi(value);
-                    } catch (...) {}
-                } else if (key == "candidate_font_name") {
-                    g_candidateFontName = utf8_to_wstr(value);
-                }
-            }
-            // 處理Window section
-            else if (currentSection == "Window") {
-                if (key == "window_width") {
-                    try {
-                        g_windowWidth = stoi(value);
-                    } catch (...) {}
-                } else if (key == "window_height") {
-                    try {
-                        g_windowHeight = stoi(value);
-                    } catch (...) {}
-                } else if (key == "candidate_width") {
-                    try {
-                        g_candidateWidth = stoi(value);
-                    } catch (...) {}
-                } else if (key == "candidate_height") {
-                    try {
-                        g_candidateHeight = stoi(value);
-                    } catch (...) {}
-                }
-            }
-        }
-    }
-    fin.close();
-    
-    // 重新設置視窗大小
-    if (g_hWnd) {
-        SetWindowPos(g_hWnd, NULL, 0, 0, g_windowWidth, g_windowHeight, SWP_NOMOVE | SWP_NOZORDER);
-    }
-    if (g_hCandWnd) {
-        SetWindowPos(g_hCandWnd, NULL, 0, 0, g_candidateWidth, g_candidateHeight, SWP_NOMOVE | SWP_NOZORDER);
-    }
-    
-    update_status(L"重新載入介面配置（含完整候選字配色）");
-}
-
-double calculate_time_weight(time_t lastUsed) {
-    time_t now = time(nullptr);
-    double daysDiff = difftime(now, lastUsed) / (24 * 3600);
-    if (daysDiff <= 1) return 1.0;
-    if (daysDiff <= 7) return 0.8;
-    if (daysDiff <= 30) return 0.6;
-    if (daysDiff <= 90) return 0.4;
-    return 0.2;
-}
-
-// 修正：添加標點符號過濾的學習函數
-void learn_word(const wstring& word) {
-    // 新增：過濾標點符號和空白字元
-    if (is_punctuation(word)) {
-        return;  // 不學習標點符號
-    }
-    
-    // 新增：過濾空白或過短的詞語
-    if (word.empty() || word.length() == 0) {
-        return;
-    }
-    
-    time_t now = time(nullptr);
-    if (g_wordFreq.find(word) == g_wordFreq.end()) {
-        g_wordFreq[word] = {1, now, 1, false};
-        update_status(L"學習新詞：" + word + L"（暫存）");
-    } else {
-        WordInfo& info = g_wordFreq[word];
-        info.frequency++;
-        info.lastUsed = now;
-        if (!info.isPermanent) {
-            info.tempCount++;
-            if (info.tempCount >= 3) {
-                info.isPermanent = true;
-                update_status(L"詞語加入永久詞庫：" + word);
-            } else {
-                update_status(L"詞語學習中：" + word + L"（" + to_wstring(info.tempCount) + L"/3）");
-            }
-        }
-    }
-    if (!g_lastSelected.empty() && g_lastSelected != word) {
-        g_contextLearning[g_lastSelected].push_back(word);
-        if (g_contextLearning[g_lastSelected].size() > 10) {
-            g_contextLearning[g_lastSelected].erase(g_contextLearning[g_lastSelected].begin());
-        }
-    }
-    g_lastSelected = word;
-}
-
-double get_word_score(const wstring& word, const wstring& code) {
-    double score = (10.0 - code.length()) * 2.0;
-    if (g_wordFreq.find(word) != g_wordFreq.end()) {
-        const WordInfo& info = g_wordFreq[word];
-        double freqScore = info.frequency * 1.0;
-        double timeWeight = calculate_time_weight(info.lastUsed);
-        double permanentBonus = info.isPermanent ? 5.0 : 0.0;
-        score += (freqScore * timeWeight) + permanentBonus;
-    }
-    if (!g_lastSelected.empty() && g_contextLearning.find(g_lastSelected) != g_contextLearning.end()) {
-        auto& context = g_contextLearning[g_lastSelected];
-        if (find(context.begin(), context.end(), word) != context.end()) {
-            score += 3.0;
-        }
-    }
-    return score;
-}
-
-void send_text_direct_unicode(const wstring& text) {
-    if (text.empty()) return;
-    
-    for (wchar_t ch : text) {
-        INPUT input = {0};
-        input.type = INPUT_KEYBOARD;
-        input.ki.wVk = 0;
-        input.ki.wScan = ch;
-        input.ki.dwFlags = KEYEVENTF_UNICODE;
-        input.ki.time = 0;
-        input.ki.dwExtraInfo = 0;
-        SendInput(1, &input, sizeof(INPUT));
+        if (eq == string::npos) continue;
         
-        input.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
-        SendInput(1, &input, sizeof(INPUT));
+        string key = line.substr(0, eq);
+        string value = line.substr(eq + 1);
         
-        INPUT flushInput = {0};
-        flushInput.type = INPUT_KEYBOARD;
-        flushInput.ki.wVk = VK_PACKET;
-        flushInput.ki.dwFlags = KEYEVENTF_KEYUP;
-        SendInput(1, &flushInput, sizeof(INPUT));
+        try {
+            if (section == "Toolbar") {
+                if (key == "x") g_toolbarPos.x = stoi(value);
+                else if (key == "y") g_toolbarPos.y = stoi(value);
+                g_toolbarPos.isValid = true;
+            } else if (section == "UserPosition") {
+                if (key == "enabled") g_useUserPosition = (value == "1");
+                else if (key == "input_x") g_userInputPos.x = stoi(value);
+                else if (key == "input_y") g_userInputPos.y = stoi(value);
+                else if (key == "cand_x") g_userCandPos.x = stoi(value);
+                else if (key == "cand_y") g_userCandPos.y = stoi(value);
+                
+                if (g_useUserPosition) {
+                    g_userInputPos.isValid = true;
+                    g_userCandPos.isValid = true;
+                }
+            } else if (section == "OptimizedPositioning") {
+                if (key == "vertical_offset") g_verticalOffset = stoi(value);
+            } else if (section == "ToolbarExtended") {
+                // 👆 您找到的代碼片段應該在這裡
+                if (key == "x") g_screenModePositions.extendedModePos.x = stoi(value);
+                else if (key == "y") g_screenModePositions.extendedModePos.y = stoi(value);
+                g_screenModePositions.extendedModePos.isValid = true;
+                g_screenModePositions.hasExtendedPos = true;
+            } else if (section == "ToolbarMirrored") {
+                if (key == "x") g_screenModePositions.mirroredModePos.x = stoi(value);
+                else if (key == "y") g_screenModePositions.mirroredModePos.y = stoi(value);
+                g_screenModePositions.mirroredModePos.isValid = true;
+                g_screenModePositions.hasMirroredPos = true;
+            }
+        } catch (...) {}
+    }
+    
+    config.close();
+    
+    // 根據當前螢幕模式自動選擇合適的位置
+    if (is_extended_mode() && g_screenModePositions.hasExtendedPos) {
+        g_toolbarPos = g_screenModePositions.extendedModePos;
+    } else if (is_mirrored_mode() && g_screenModePositions.hasMirroredPos) {
+        g_toolbarPos = g_screenModePositions.mirroredModePos;
+    }
+    
+    // 驗證載入的位置是否安全
+    RECT currentScreen = get_safe_primary_screen();
+    if (g_toolbarPos.x < currentScreen.left || 
+        g_toolbarPos.x > currentScreen.right - TOOLBAR_WIDTH ||
+        g_toolbarPos.y < currentScreen.top ||
+        g_toolbarPos.y > currentScreen.bottom - TOOLBAR_HEIGHT) {
         
-        Sleep(5);
+        g_toolbarPos.x = currentScreen.left + 50;
+        g_toolbarPos.y = currentScreen.bottom - TOOLBAR_HEIGHT - 80;
+        save_positions();
+    }
+    
+    // 增強版位置驗證
+    update_monitor_info();
+    bool positionValid = false;
+
+    for (const auto& monitor : g_monitors) {
+        if (g_toolbarPos.x >= monitor.workArea.left && 
+            g_toolbarPos.x <= monitor.workArea.right - TOOLBAR_WIDTH &&
+            g_toolbarPos.y >= monitor.workArea.top &&
+            g_toolbarPos.y <= monitor.workArea.bottom - TOOLBAR_HEIGHT) {
+            positionValid = true;
+            break;
+        }
+    }
+
+    if (!positionValid) {
+        RECT safeScreen = get_safe_primary_screen();
+        g_toolbarPos.x = safeScreen.left + 50;
+        g_toolbarPos.y = safeScreen.bottom - TOOLBAR_HEIGHT - 80;
+        g_toolbarPos.isValid = true;
+        save_positions();
+        
+        MessageBoxW(NULL, 
+            L"偵測到工具列位置在當前螢幕模式下無效，\n"
+            L"已自動重置到主螢幕安全位置。", 
+            L"位置自動修正", MB_OK | MB_ICONINFORMATION);
     }
 }
 
-void load_dict(const char* fname, map<wstring, vector<wstring>>& dict) {
-    dict.clear();  // 清空現有字典
-    ifstream fin(fname);
+
+// ========== 介面配色載入 ==========
+COLORREF parse_color(const string& hex) {
+    if (hex.empty() || hex[0] != '#') return RGB(255,255,255);
+    string colorStr = hex.substr(1);
+    if (colorStr.length() != 6) return RGB(255,255,255);
+    
+    try {
+        int r = stoi(colorStr.substr(0,2), nullptr, 16);
+        int g = stoi(colorStr.substr(2,2), nullptr, 16); 
+        int b = stoi(colorStr.substr(4,2), nullptr, 16);
+        return RGB(r,g,b);
+    } catch (...) {
+        return RGB(255,255,255);
+    }
+}
+
+void load_interface_config() {
+    ifstream config("interface_config.ini");
+    if (!config.is_open()) return;
+    
+    string line, section;
+    while (getline(config, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        
+        if (line[0] == '[' && line.back() == ']') {
+            section = line.substr(1, line.length() - 2);
+            continue;
+        }
+        
+        size_t eq = line.find('=');
+        if (eq == string::npos) continue;
+        
+        string key = line.substr(0, eq);
+        string value = line.substr(eq + 1);
+        
+        key.erase(0, key.find_first_not_of(" \t"));
+        key.erase(key.find_last_not_of(" \t") + 1);
+        value.erase(0, value.find_first_not_of(" \t"));
+        value.erase(value.find_last_not_of(" \t") + 1);
+        
+        if (section == "Colors") {
+            COLORREF color = parse_color(value);
+            if (key == "candidate_background_color") g_candidateBackgroundColor = color;
+            else if (key == "candidate_text_color") g_candidateTextColor = color;
+            else if (key == "selected_candidate_background_color") g_selectedCandidateBackgroundColor = color;
+            else if (key == "selected_candidate_text_color") g_selectedCandidateTextColor = color;
+            else if (key == "input_background_color") g_inputBackgroundColor = color;
+            else if (key == "input_text_color") g_inputTextColor = color;
+            else if (key == "input_border_color") g_inputBorderColor = color;
+            else if (key == "candidate_border_color") g_candidateBorderColor = color;
+        }
+        else if (section == "Font") {
+            if (key == "candidate_font_size") {
+                try { g_candidateFontSize = stoi(value); } catch (...) { g_candidateFontSize = 14; }
+            }
+            else if (key == "candidate_font_name") {
+                g_candidateFontName = utf8_to_wstr(value);
+            }
+            else if (key == "input_font_size") {
+                try { g_inputFontSize = stoi(value); } catch (...) { g_inputFontSize = 14; }
+            }
+            else if (key == "input_font_name") {
+                g_inputFontName = utf8_to_wstr(value);
+            }
+        }
+    }
+    config.close();
+}
+
+
+// ========== 字典載入 ==========
+void load_dict() {
+    g_dict.clear();
+    ifstream fin("Zi-Ma-Biao.txt");
     if (!fin.is_open()) {
-        update_status(L"無法載入字典檔案，使用內建字典");
-        dict[L"u"] = {L"一"};
-        dict[L"i"] = {L"丨"};
-        dict[L"o"] = {L"丿"};
-        dict[L"j"] = {L"丶"};
-        dict[L"k"] = {L"乙"};
-        g_dictSize = 5;
+        // 內建測試字典
+        g_dict[L"u"] = {L"一"};
+        g_dict[L"i"] = {L"丨"};
+        g_dict[L"o"] = {L"丿"};
+        g_dict[L"j"] = {L"丶"};
+        g_dict[L"k"] = {L"乙"};
+        g_dict[L"ui"] = {L"工", L"七", L"上"};
+        g_dict[L"uj"] = {L"下", L"不", L"丁"};
+        g_dict[L"uio"] = {L"中", L"小", L"大"};
+        g_dict[L"uioj"] = {L"木", L"水", L"火"};
+        g_dict[L"uioji"] = {L"林", L"森", L"樹"};
+        g_dict[L"ujk"] = {L"人", L"入", L"八"};
+        g_dict[L"uik"] = {L"土", L"士", L"十"};
+        g_dict[L"uiojik"] = {L"森林茂密", L"綠樹成蔭"};
+        g_dict[L"uiojikuo"] = {L"測試長字碼功能"};
+        update_status(L"使用內建測試字典");
         return;
     }
+    
     string line;
     int count = 0;
     while (getline(fin, line)) {
         if (line.empty() || line[0] == '#') continue;
         size_t tab = line.find('\t');
         if (tab == string::npos) continue;
-        wstring key = utf8_to_wstr(line.substr(tab+1));
-        wstring val = utf8_to_wstr(line.substr(0, tab));
-        if (!key.empty() && !val.empty()) {
-            dict[key].push_back(val);
+        
+        string character = line.substr(0, tab);
+        string code = line.substr(tab + 1);
+        
+        wstring wchar = utf8_to_wstr(character);
+        wstring wcode = utf8_to_wstr(code);
+        
+        if (!wchar.empty() && !wcode.empty()) {
+            g_dict[wcode].push_back(wchar);
             count++;
         }
     }
     fin.close();
-    g_dictSize = count;
-    update_status(L"重新載入中文字典：" + to_wstring(count) + L" 個字");
+    update_status(L"載入字典：" + to_wstring(count) + L" 個字");
 }
 
 void load_punctuator() {
+    g_punct.clear();
     g_punct[L","] = {L"，", L","};
     g_punct[L"."] = {L"。", L"."};
     g_punct[L"?"] = {L"？", L"?"};
@@ -430,8 +735,8 @@ void load_punctuator() {
     g_punct[L";"] = {L"；", L";"};
     g_punct[L"("] = {L"（", L"("};
     g_punct[L")"] = {L"）", L")"};
-    g_punct[L"["] = {L"「", L"【", L"［", L"["};
-    g_punct[L"]"] = {L"」", L"】", L"］", L"]"};
+    g_punct[L"["] = {L"「", L"[", L"［", L"["};
+    g_punct[L"]"] = {L"」", L"]", L"］", L"]"};
     g_punct[L"{"] = {L"『", L"{"};
     g_punct[L"}"] = {L"』", L"}"};
     g_punct[L" "] = {L" "};
@@ -439,9 +744,8 @@ void load_punctuator() {
     g_punct[L">"] = {L"》", L">"};
     g_punct[L"/"] = {L"／", L"/"};
     g_punct[L"'"] = {L"、", L"'"};
-    // 新增：完整的中文標點符號映射
     g_punct[L"-"] = {L"－", L"-"};
-	g_punct[L"_"] = {L"＿", L"_"};
+    g_punct[L"_"] = {L"＿", L"_"};
     g_punct[L"="] = {L"＝", L"="};
     g_punct[L"\\"] = {L"＼", L"\\"};
     g_punct[L"|"] = {L"｜", L"|"}; 
@@ -455,82 +759,61 @@ void load_punctuator() {
     g_punct[L"@"] = {L"＠", L"@"};   
     g_punct[L"$"] = {L"＄", L"$"}; 
     g_punct[L"%"] = {L"％", L"%"};
-	g_punct[L"\""] = {L"＂", L"\""};
-}
-
-void load_punct_menu_from_file() {
-    g_punctCandidates.clear();  // 清空現有標點符號列表
-    ifstream fin("punct_menu.txt");
-    if (!fin.is_open()) {
-        update_status(L"無法載入標點符號選單檔案，使用內建選單");
-        // 使用內建標點符號列表作為備份
-        g_punctCandidates = { 
-            L"※", L"✓", L"，", L"。", L"？", L"！", L"：", L"；", 
-            L"（", L"）", L"「", L"」", L"【", L"】", L"『", L"』", 
-            L"《", L"》", L"〈", L"〉", L"、", L"·", L"－", L"—", 
-            L"……", L""", L""", L"'", L"'", L"｜", L"＼", L"／", 
-            L"～", L"＿", L"￥", L"％", L"＃", L"＠", L"｛", L"｝" 
-        };
-        return;
-    }
-    
-    string line;
-    int count = 0;
-    while (getline(fin, line)) {
-        // 移除前後空白
-        line.erase(0, line.find_first_not_of(" \t\r\n"));
-        line.erase(line.find_last_not_of(" \t\r\n") + 1);
-        
-        // 跳過空行和註釋行
-        if (line.empty() || line[0] == '#') continue;
-        
-        // 支援 TAB 分隔的格式：標點符號<TAB>描述
-        size_t tab = line.find('\t');
-        string punctStr;
-        if (tab != string::npos) {
-            punctStr = line.substr(0, tab);  // 只取標點符號部分
-        } else {
-            punctStr = line;  // 整行都是標點符號
-        }
-        
-        // 轉換為寬字符並添加到列表
-        wstring punct = utf8_to_wstr(punctStr);
-        if (!punct.empty()) {
-            g_punctCandidates.push_back(punct);
-            count++;
-        }
-    }
-    fin.close();
-    
-    // 如果載入的標點符號太少，使用內建備份
-    if (count < 5) {
-        update_status(L"標點符號選單檔案內容過少，使用內建選單");
-        g_punctCandidates = { 
-            L"※", L"✓", L"，", L"。", L"？", L"！", L"：", L"；", 
-            L"（", L"）", L"「", L"」", L"【", L"】", L"『", L"』", 
-            L"《", L"》", L"〈", L"〉", L"、", L"·", L"－", L"—", 
-            L"……", L""", L""", L"'", L"'", L"｜", L"＼", L"／", 
-            L"～", L"＿", L"￥", L"％", L"＃", L"＠", L"｛", L"｝" 
-        };
-    } else {
-        update_status(L"載入標點符號選單：" + to_wstring(count) + L" 個符號");
-    }
+    g_punct[L"\""] = {L"＂", L"\""};
 }
 
 void load_punct_menu() {
-     load_punct_menu_from_file();
+    ifstream fin("punct_menu.txt");
+    if (!fin.is_open()) {
+        // 使用內建預設標點符號
+        g_punctCandidates = { 
+            L"※", L"✓", L"，", L"。", L"？", L"！", L"：", L"；", 
+            L"（", L"）", L"「", L"」", L"【", L"】", L"『", L"』", 
+            L"《", L"》", L"〈", L"〉", L"、", L"·", L"－", L"—", 
+            L"……", L""", L""", L"'", L"'", L"｜", L"＼", L"／", 
+            L"～", L"＿", L"￥", L"％", L"＃", L"＠", L"｛", L"｝" 
+        };
+        return;
+    }
+    
+    g_punctCandidates.clear();
+    string line;
+    while (getline(fin, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        wstring punct = utf8_to_wstr(line);
+        if (!punct.empty()) {
+            g_punctCandidates.push_back(punct);
+        }
+    }
+    fin.close();
+}
+
+
+// ========== 用戶字典學習系統 ==========
+bool is_punctuation(const wstring& word) {
+    if (word.empty()) return false;
+    wstring punctuations = L"，。？！：；（）「」【】『』《》〈〉、·－—……""''｜＼／～＿￥％＃＠｛｝"
+                          L",.?!:;()[]{}\"'<>/\\-_@#$%^&*+=|`~ 　";
+    for (wchar_t ch : word) {
+        if (punctuations.find(ch) == wstring::npos && ch != L' ' && ch != L'\t') {
+            return false;
+        }
+    }
+    return true;
 }
 
 void load_userdict() {
-    g_wordFreq.clear();  // 清空現有用戶字典
+    g_wordFreq.clear();
     ifstream fin("user_dict.txt");
     if (!fin.is_open()) {
-        update_status(L"首次使用，將建立用戶字典");
+        update_status(L"初始化用戶字典");
         return;
     }
+    
     string line;
     int count = 0;
     time_t now = time(nullptr);
+    
     try {
         while (getline(fin, line)) {
             if (line.empty() || line[0] == '#') continue;
@@ -543,58 +826,291 @@ void load_userdict() {
             if (parts.size() >= 2) {
                 wstring character = utf8_to_wstr(parts[0]);
                 int freq = (parts.size() >= 3) ? stoi(parts[2]) : 1;
+                bool isPerm = (parts.size() >= 4) ? (parts[3] == "permanent") : false;
                 if (!character.empty()) {
-                    g_wordFreq[character] = {freq, now, max(3, freq), freq >= 3};
+                    g_wordFreq[character] = {freq, now, max(3, freq), isPerm};
                     count++;
                 }
             }
         }
     } catch (...) {}
     fin.close();
-    update_status(L"重新載入用戶字典：" + to_wstring(count) + L" 個記錄");
+    update_status(L"載入用戶字典：" + to_wstring(count) + L" 個記錄");
 }
 
 void save_userdict() {
     try {
         ofstream fout("user_dict.txt");
         if (!fout.is_open()) return;
-        fout << "# 用戶字典 - 自動生成（已過濾標點符號）" << endl;
+        fout << "# 用戶字典 - 自動生成" << endl;
         fout << "# 格式：詞語<TAB><TAB>使用頻率<TAB>狀態" << endl;
-        fout << "# 可自行添加修改" << endl;
-        vector<pair<wstring, WordInfo>> freqList;
         for (const auto& pair : g_wordFreq) {
-            freqList.push_back(make_pair(pair.first, pair.second));
-        }
-        sort(freqList.begin(), freqList.end(), [](const pair<wstring, WordInfo>& a, const pair<wstring, WordInfo>& b) {
-            double scoreA = a.second.frequency * calculate_time_weight(a.second.lastUsed);
-            double scoreB = b.second.frequency * calculate_time_weight(b.second.lastUsed);
-            return scoreA > scoreB;
-        });
-        int maxEntries = min(2000, (int)freqList.size());
-        for (int i = 0; i < maxEntries; i++) {
-            const auto& item = freqList[i];
-            string status = item.second.isPermanent ? "permanent" : "temp";
-            fout << wstr_to_utf8(item.first) << "\t\t" << item.second.frequency << "\t" << status << endl;
+            string status = pair.second.isPermanent ? "permanent" : "temp";
+            fout << wstr_to_utf8(pair.first) << "\t\t" << pair.second.frequency << "\t" << status << endl;
         }
         fout.close();
-        
     } catch (...) {}
 }
 
-void load_config() {
-    load_interface_config();
-    load_punct_menu();
-    update_status(L"載入設定檔完成");
-}
-
-bool validate_input(const wstring& input) {
-    if (input.empty()) return true;
-    for (wchar_t ch : input) {
-        if (ch != L'u' && ch != L'i' && ch != L'o' && ch != L'j' && ch != L'k' && ch != L'*') {
-            return false;
+void learn_word(const wstring& word) {
+    if (is_punctuation(word) || word.empty()) return;
+    
+    time_t now = time(nullptr);
+    if (g_wordFreq.find(word) == g_wordFreq.end()) {
+        g_wordFreq[word] = {1, now, 1, false};
+    } else {
+        WordInfo& info = g_wordFreq[word];
+        info.frequency++;
+        info.lastUsed = now;
+        if (!info.isPermanent) {
+            info.tempCount++;
+            if (info.tempCount >= 3) {
+                info.isPermanent = true;
+                update_status(L"詞語已加入永久詞庫：" + word);
+            }
         }
     }
-    return true;
+    g_lastSelected = word;
+}
+
+double get_word_score(const wstring& word, const wstring& code) {
+    double score = (10.0 - code.length()) * 2.0;
+    if (g_wordFreq.find(word) != g_wordFreq.end()) {
+        const WordInfo& info = g_wordFreq[word];
+        score += info.frequency * 1.0;
+        if (info.isPermanent) score += 5.0;
+    }
+    return score;
+}
+
+void sort_candidates_by_score() {
+    vector<pair<wstring, wstring>> candidatePairs;
+    for (size_t i = 0; i < g_candidates.size(); i++) {
+        candidatePairs.push_back(make_pair(g_candidates[i], g_candidateCodes[i]));
+    }
+    sort(candidatePairs.begin(), candidatePairs.end(), 
+         [](const pair<wstring, wstring>& a, const pair<wstring, wstring>& b) {
+        return get_word_score(a.first, a.second) > get_word_score(b.first, b.second);
+    });
+    g_candidates.clear();
+    g_candidateCodes.clear();
+    for (const auto& pair : candidatePairs) {
+        g_candidates.push_back(pair.first);
+        g_candidateCodes.push_back(pair.second);
+    }
+}
+
+// ========== 通配符搜尋 ==========
+bool wildcard_match(const wstring& pattern, const wstring& text) {
+    int pLen = pattern.length();
+    int tLen = text.length();
+    
+    vector<vector<bool>> dp(tLen + 1, vector<bool>(pLen + 1, false));
+    dp[0][0] = true;
+    
+    for (int j = 1; j <= pLen; j++) {
+        if (pattern[j-1] == L'*') {
+            dp[0][j] = dp[0][j-1];
+        }
+    }
+    
+    for (int i = 1; i <= tLen; i++) {
+        for (int j = 1; j <= pLen; j++) {
+            if (pattern[j-1] == L'*') {
+                dp[i][j] = dp[i-1][j] || dp[i][j-1];
+            } else if (pattern[j-1] == text[i-1]) {
+                dp[i][j] = dp[i-1][j-1];
+            }
+        }
+    }
+    
+    return dp[tLen][pLen];
+}
+
+// ========== 容錯輸入處理 ==========
+bool enhanced_validate_input(const wstring& input) {
+    if (input.empty()) return true;
+    if (input.length() > 30) return false;
+    
+    int validCharCount = 0;
+    for (wchar_t ch : input) {
+        if (ch == L'u' || ch == L'i' || ch == L'o' || ch == L'j' || ch == L'k' || ch == L'*') {
+            validCharCount++;
+        }
+    }
+    
+    return validCharCount > 0;
+}
+
+wstring filter_valid_chars(const wstring& input) {
+    wstring filtered;
+    for (wchar_t ch : input) {
+        if (ch == L'u' || ch == L'i' || ch == L'o' || ch == L'j' || ch == L'k' || ch == L'*') {
+            filtered += ch;
+        }
+    }
+    return filtered;
+}
+
+void update_candidates_enhanced() {
+    g_candidates.clear();
+    g_candidateCodes.clear();
+    g_selected = 0;
+    g_currentPage = 0;
+    g_inputError = false;
+
+    if (g_input.empty()) { 
+        g_showCand = false;
+        g_isInputting = false;
+        if (g_hCandWnd) ShowWindow(g_hCandWnd, SW_HIDE);
+        if (g_hInputWnd) ShowWindow(g_hInputWnd, SW_HIDE);
+        update_status(g_chineseMode ? L"中文模式（全形標點）" : L"英文模式（半形標點）");
+        return; 
+    }
+
+    if (!enhanced_validate_input(g_input)) {
+        g_inputError = true;
+        g_showCand = false;
+        g_isInputting = true;
+        if (g_hInputWnd) ShowWindow(g_hInputWnd, SW_SHOW);
+        if (g_hCandWnd) ShowWindow(g_hCandWnd, SW_HIDE);
+        update_status(L"字碼過長：建議使用(3+3)搜尋或清除重新輸入");
+        return;
+    }
+
+    wstring filteredInput = filter_valid_chars(g_input);
+    
+    if (filteredInput.empty()) {
+        g_inputError = true;
+        g_showCand = false;
+        g_isInputting = true;
+        if (g_hInputWnd) ShowWindow(g_hInputWnd, SW_SHOW);
+        if (g_hCandWnd) ShowWindow(g_hCandWnd, SW_HIDE);
+        update_status(L"請輸入有效字碼：uiojk或*");
+        return;
+    }
+
+    bool hasWildcard = filteredInput.find(L'*') != wstring::npos;
+    if (hasWildcard) {
+        for (const auto& pair : g_dict) {
+            if (wildcard_match(filteredInput, pair.first)) {
+                for (const auto& character : pair.second) {
+                    g_candidates.push_back(character);
+                    g_candidateCodes.push_back(pair.first);
+                }
+            }
+        }
+    } else {
+        if (g_dict.count(filteredInput)) {
+            for (const auto& character : g_dict[filteredInput]) {
+                g_candidates.push_back(character);
+                g_candidateCodes.push_back(filteredInput);
+            }
+        }
+        
+        int prefixMatchCount = 0;
+        const int MAX_PREFIX_MATCHES = 50;
+        for (const auto& pair : g_dict) {
+            if (prefixMatchCount >= MAX_PREFIX_MATCHES) break;
+            if (pair.first.length() > filteredInput.length() && 
+                pair.first.substr(0, filteredInput.length()) == filteredInput) {
+                for (const auto& character : pair.second) {
+                    if (find(g_candidates.begin(), g_candidates.end(), character) == g_candidates.end()) {
+                        g_candidates.push_back(character);
+                        g_candidateCodes.push_back(pair.first);
+                        prefixMatchCount++;
+                        if (prefixMatchCount >= MAX_PREFIX_MATCHES) break;
+                    }
+                }
+            }
+        }
+        
+        if (filteredInput.length() > 8 && g_candidates.empty()) {
+            wstring first3 = filteredInput.substr(0, min(3, (int)filteredInput.length()));
+            wstring last3;
+            if (filteredInput.length() >= 6) {
+                last3 = filteredInput.substr(filteredInput.length() - 3);
+            } else if (filteredInput.length() > 3) {
+                last3 = filteredInput.substr(3);
+            }
+            wstring searchPattern = first3 + L"*" + last3;
+            for (const auto& pair : g_dict) {
+                if (wildcard_match(searchPattern, pair.first)) {
+                    for (const auto& character : pair.second) {
+                        g_candidates.push_back(character);
+                        g_candidateCodes.push_back(pair.first);
+                    }
+                }
+            }
+        }
+    }
+
+    sort_candidates_by_score();
+    g_totalPages = (g_candidates.size() + CANDIDATES_PER_PAGE - 1) / CANDIDATES_PER_PAGE;
+    g_showCand = !g_candidates.empty();
+    g_isInputting = true;
+
+    position_windows_optimized();
+
+    wstring statusMsg;
+    if (filteredInput != g_input) {
+        statusMsg = L"容錯搜尋(" + filteredInput + L")：" + to_wstring(g_candidates.size()) + L"個候選字";
+    } else {
+        statusMsg = (hasWildcard ? L"(3+3)搜尋" : (filteredInput.length() > 8 ? L"長字碼搜尋" : L"智慧搜尋"));
+        statusMsg += L"：" + to_wstring(g_candidates.size()) + L"個候選字";
+    }
+    
+    if (filteredInput.length() > 6 && !hasWildcard && g_candidates.empty()) {
+        wstring first3 = filteredInput.substr(0, min(3, (int)filteredInput.length()));
+        wstring last3;
+        if (filteredInput.length() >= 6) {
+            last3 = filteredInput.substr(filteredInput.length() - 3);
+        } else if (filteredInput.length() > 3) {
+            last3 = filteredInput.substr(3);
+        }
+        if (!last3.empty()) {
+            statusMsg += L" | 建議(3+3)：" + first3 + L"*" + last3;
+        }
+    }
+    update_status(statusMsg);
+}
+
+wstring get_input_display() {
+    wstring display = g_input;
+    if (g_showPunctMenu) {
+        display = L"標點符號選單";
+    } else if (!g_input.empty()) {
+        wstring filtered = filter_valid_chars(g_input);
+        if (filtered != g_input) {
+            display += L" [已過濾: " + filtered + L"]";
+        }
+        
+        if (filtered.length() > 6) {
+            wstring first3 = filtered.substr(0, 3);
+            wstring last3 = filtered.substr(filtered.length() - 3);
+            display += L" (建議: " + first3 + L"*" + last3 + L")";
+        } else if (filtered.length() > 3) {
+            display += L" (可用*號搜尋)";
+        }
+    }
+    return display;
+}
+
+void send_text(const wstring& text) {
+    if (text.empty()) return;
+    
+    for (wchar_t ch : text) {
+        INPUT input = {0};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = 0;
+        input.ki.wScan = ch;
+        input.ki.dwFlags = KEYEVENTF_UNICODE;
+        SendInput(1, &input, sizeof(INPUT));
+        
+        input.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+        SendInput(1, &input, sizeof(INPUT));
+        Sleep(5);
+    }
 }
 
 void toggle_input_mode() {
@@ -607,234 +1123,14 @@ void toggle_input_mode() {
     g_inputError = false;
     g_showPunctMenu = false;
     if (g_hCandWnd) ShowWindow(g_hCandWnd, SW_HIDE);
-    wstring modeMsg = g_chineseMode ? L"中文+全形" : L"英文+半形";
-    update_status(L"Shift切換到" + modeMsg + L"模式");
+    if (g_hInputWnd) ShowWindow(g_hInputWnd, SW_HIDE);
+    
+    wstring modeMsg = g_chineseMode ? L"中文模式（全形標點）" : L"英文模式（半形標點）";
+    update_status(L"切換到" + modeMsg);
     if (g_hWnd) InvalidateRect(g_hWnd, nullptr, TRUE);
 }
 
-LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode >= 0) {
-        KBDLLHOOKSTRUCT* pKeyboard = (KBDLLHOOKSTRUCT*)lParam;
-        DWORD key = pKeyboard->vkCode;
-
-        if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT) {
-            if (wParam == WM_KEYDOWN) {
-                if (!g_shiftPressed) {
-                    g_shiftPressed = true;
-                    g_shiftUsedForCombo = false;
-                    g_shiftPressTime = GetTickCount();
-                }
-            } else if (wParam == WM_KEYUP) {
-                if (g_shiftPressed) {
-                    g_shiftPressed = false;
-                    DWORD pressDuration = GetTickCount() - g_shiftPressTime;
-                    if (!g_shiftUsedForCombo && pressDuration < 500 && pressDuration > 30) {
-                        toggle_input_mode();
-                    }
-                    // 新增：Shift鍵釋放時重置組合鍵狀態
-                    g_shiftUsedForCombo = false;
-                }
-            }
-            return CallNextHookEx(g_hKeyboardHook, nCode, wParam, lParam);
-        }
-        
-        if (wParam == WM_KEYDOWN) {
-            if (g_shiftPressed && key != VK_SHIFT && key != VK_LSHIFT && key != VK_RSHIFT) {
-                g_shiftUsedForCombo = true;
-            }
-
-            bool isStrokeKey = (key == 'U' || key == 'I' || key == 'O' || key == 'J' || key == 'K' || key == 'L' || key == 'P' ||
-                                key == VK_NUMPAD7 || key == VK_NUMPAD8 || key == VK_NUMPAD9 || 
-                                key == VK_NUMPAD4 || key == VK_NUMPAD5 || key == VK_NUMPAD0);
-
-            // 修正：重新設計標點符號鍵判斷邏輯
-            bool isPunctKey = (key == VK_OEM_COMMA || key == VK_OEM_PERIOD || key == VK_OEM_2 ||
-                   key == VK_OEM_1 || key == VK_OEM_4 || key == VK_OEM_6 || key == VK_OEM_7 ||
-                   key == VK_OEM_MINUS || key == VK_OEM_PLUS || key == VK_OEM_5 || key == VK_OEM_3 ||  // 新增
-                   (key == '1' && g_shiftPressed) || (key == '2' && g_shiftPressed) || 
-                   (key == '3' && g_shiftPressed) || (key == '4' && g_shiftPressed) || 
-                   (key == '5' && g_shiftPressed) || (key == '6' && g_shiftPressed) || 
-                   (key == '7' && g_shiftPressed) || (key == '8' && g_shiftPressed) || 
-                   (key == '9' && g_shiftPressed) || (key == '0' && g_shiftPressed));
-            
-            bool isFunctionKey = ((g_isInputting || g_showPunctMenu) && 
-                      (key == VK_SPACE || key == VK_BACK || key == VK_ESCAPE ||
-                       key == VK_UP || key == VK_DOWN || key == VK_TAB ||  // 新增Tab鍵
-                       (key >= '1' && key <= '9')));
-
-            
-            if (g_chineseMode) {
-                if (isStrokeKey || isPunctKey || (key == VK_SPACE && g_isInputting) || isFunctionKey) {
-                    PostMessage(g_hWnd, WM_USER+100, key, 0);
-                    return 1;
-                }
-            } else {
-                if (isPunctKey || isFunctionKey) {
-                     PostMessage(g_hWnd, WM_USER+100, key, 0);
-                     return 1;
-                }
-            }
-        }
-        // 新增：非Shift相關按鍵釋放時，重置組合鍵狀態（避免狀態殘留）
-        else if (wParam == WM_KEYUP) {
-            if (key != VK_SHIFT && key != VK_LSHIFT && key != VK_RSHIFT && !g_shiftPressed) {
-                g_shiftUsedForCombo = false;
-            }
-        }
-    }
-    
-    return CallNextHookEx(g_hKeyboardHook, nCode, wParam, lParam);
-}
-
-bool g6_wildcard_match(const wstring& pattern, const wstring& text) {
-    int pLen = pattern.length();
-    int tLen = text.length();
-    
-    // 動態規劃表
-    vector<vector<bool>> dp(tLen + 1, vector<bool>(pLen + 1, false));
-    
-    // 空模式匹配空字符串
-    dp[0][0] = true;
-    
-    // 處理模式開頭的 * 號
-    for (int j = 1; j <= pLen; j++) {
-        if (pattern[j-1] == L'*') {
-            dp[0][j] = dp[0][j-1];
-        }
-    }
-    
-    // 填充DP表
-    for (int i = 1; i <= tLen; i++) {
-        for (int j = 1; j <= pLen; j++) {
-            if (pattern[j-1] == L'*') {
-                // * 可以匹配0個或多個字符
-                dp[i][j] = dp[i-1][j] || dp[i][j-1];
-            } else if (pattern[j-1] == text[i-1]) {
-                // 字符完全匹配
-                dp[i][j] = dp[i-1][j-1];
-            }
-            // 其他情況保持false
-        }
-    }
-    
-    return dp[tLen][pLen];
-}
-
-
-void sort_candidates_by_smart_score() {
-    vector<pair<wstring, wstring>> candidatePairs;
-    for (size_t i = 0; i < g_candidates.size(); i++) {
-        candidatePairs.push_back(make_pair(g_candidates[i], g_candidateCodes[i]));
-    }
-    sort(candidatePairs.begin(), candidatePairs.end(), [](const pair<wstring, wstring>& a, const pair<wstring, wstring>& b) {
-        double scoreA = get_word_score(a.first, a.second);
-        double scoreB = get_word_score(b.first, b.second);
-        return scoreA > scoreB;
-    });
-    g_candidates.clear();
-    g_candidateCodes.clear();
-    for (const auto& pair : candidatePairs) {
-        g_candidates.push_back(pair.first);
-        g_candidateCodes.push_back(pair.second);
-    }
-}
-
-void update_candidates() {
-    g_candidates.clear();
-    g_candidateCodes.clear();
-    g_selected = 0;
-    g_currentPage = 0;
-    g_inputError = false;
-    if (g_input.empty()) { 
-        g_showCand = false;
-        g_isInputting = false;
-        if (g_hCandWnd) ShowWindow(g_hCandWnd, SW_HIDE); 
-        wstring modeText = g_chineseMode ? L"中文筆劃+全形" : L"英文直接+半形";
-        update_status(modeText + L"模式");
-        return; 
-    }
-    if (!validate_input(g_input)) {
-        g_inputError = true;
-        g_showCand = false;
-        g_isInputting = true;
-        if (g_hCandWnd) ShowWindow(g_hCandWnd, SW_HIDE);
-        update_status(L"輸入不當：請使用uiojk或*");
-        if (g_hWnd) InvalidateRect(g_hWnd, nullptr, TRUE);
-        return;
-    }
-    
-    bool hasWildcard = g_input.find(L'*') != wstring::npos;
-    if (hasWildcard) {
-        for (const auto& pair : g_dict) {
-            if (g6_wildcard_match(g_input, pair.first)) {
-                for (const auto& character : pair.second) {
-                    g_candidates.push_back(character);
-                    g_candidateCodes.push_back(pair.first);
-                }
-            }
-        }
-    } else {
-        if (g_dict.count(g_input)) {
-            for (const auto& character : g_dict[g_input]) {
-                g_candidates.push_back(character);
-                g_candidateCodes.push_back(g_input);
-            }
-        }
-        for (const auto& pair : g_dict) {
-            if (pair.first.length() > g_input.length() && pair.first.substr(0, g_input.length()) == g_input) {
-                for (const auto& character : pair.second) {
-                    if (find(g_candidates.begin(), g_candidates.end(), character) == g_candidates.end()) {
-                        g_candidates.push_back(character);
-                        g_candidateCodes.push_back(pair.first);
-                    }
-                }
-            }
-        }
-    }
-    sort_candidates_by_smart_score();
-    g_totalPages = (g_candidates.size() + CANDIDATES_PER_PAGE - 1) / CANDIDATES_PER_PAGE;
-    g_showCand = !g_candidates.empty();
-    g_isInputting = true;
-    
-    // 修正：狀態顯示邏輯，包含 (3+3) 提示
-    wstring statusMsg;
-    if (g_showCand && g_hCandWnd) {
-        ShowWindow(g_hCandWnd, SW_SHOW);
-        wstring searchType = hasWildcard ? L"(3+3)模式搜尋" : L"智慧排序搜尋";
-        statusMsg = searchType + L"：找到 " + to_wstring(g_candidates.size()) + L" 個候選字";
-    } else {
-        if (g_hCandWnd) ShowWindow(g_hCandWnd, SW_HIDE);
-        statusMsg = L"輸入中：" + g_input + L"（無候選字）";
-    }
-    
-    // 新增：在狀態信息後添加 (3+3) 提示
-    if (g_input.length() > 8 && !hasWildcard) {
-        wstring first3 = g_input.substr(0, 3);
-        wstring last3 = g_input.substr(g_input.length() - 3);
-        wstring suggestion = first3 + L"*" + last3;
-        statusMsg += L" | 💡建議：" + suggestion;
-    }
-    
-    update_status(statusMsg);
-    
-    if (g_hCandWnd) InvalidateRect(g_hCandWnd, nullptr, TRUE);
-    if (g_hWnd) InvalidateRect(g_hWnd, nullptr, TRUE);
-}
-
-
-// 新增：自動應用(3+3)模式
-void auto_apply_3plus3_mode() {
-    if (g_input.length() > 12) {
-        wstring first3 = g_input.substr(0, 3);
-        wstring last3 = g_input.substr(g_input.length() - 3);
-        g_input = first3 + L"*" + last3;
-        
-        update_status(L"自動轉換為(3+3)模式：" + g_input);
-        update_candidates();  // 遞歸調用處理(3+3)模式
-    }
-}
-
-
+// ========== 輸入處理函數 ==========
 void show_punct_menu() {
     g_showPunctMenu = true;
     g_candidates = g_punctCandidates;
@@ -846,11 +1142,9 @@ void show_punct_menu() {
     g_currentPage = 0;
     g_totalPages = (g_candidates.size() + CANDIDATES_PER_PAGE - 1) / CANDIDATES_PER_PAGE;
     g_showCand = true;
-    if (g_hCandWnd) {
-        ShowWindow(g_hCandWnd, SW_SHOW);
-        InvalidateRect(g_hCandWnd, nullptr, TRUE);
-    }
-    update_status(L"全形標點符號選單（按ESC關閉）");
+    g_isInputting = true;
+    position_windows_optimized();
+    update_status(L"標點符號選單");
 }
 
 void process_stroke(DWORD key) {
@@ -876,67 +1170,29 @@ void process_stroke(DWORD key) {
     }
     if (inputChar) {
         g_input += inputChar;
-        
-        
-        update_candidates();
+        update_candidates_enhanced();
         if (g_hWnd) InvalidateRect(g_hWnd, nullptr, TRUE);
     }
 }
 
-// 新增：(3+3)模式智能提示函數
-// 修正：正確的函數結構
-void suggest_3plus3_mode() {
-    if (g_input.length() > 8) {  // 超過8筆劃啟用提示
-        wstring first3 = g_input.substr(0, 3);
-        wstring last3 = g_input.substr(g_input.length() - 3);
-        wstring suggestion = first3 + L"*" + last3;
-        
-        update_status(L"💡建議(3+3)模式：" + suggestion + L"（可節省輸入時間）");
-    }  
-}      
-
-
-
-
-// 修正：移除標點符號學習的標點處理函數
 void process_punctuator(DWORD key) {
     wstring punctChar = L"";
     bool isShiftPressed = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+    
     switch (key) {
-        // 現有的按鍵映射
         case VK_OEM_COMMA: punctChar = isShiftPressed ? L"<" : L","; break;
         case VK_OEM_PERIOD: punctChar = isShiftPressed ? L">" : L"."; break;
         case VK_OEM_2: punctChar = isShiftPressed ? L"?" : L"/"; break;
-        case '1': if (isShiftPressed) punctChar = L"!"; break;
-        case VK_OEM_1: if (isShiftPressed) punctChar = L":"; else punctChar = L";"; break;
-        case '9': if (isShiftPressed) punctChar = L"("; break;
-        case '0': if (isShiftPressed) punctChar = L")"; break;
-        case VK_OEM_4: 
-            punctChar = isShiftPressed ? L"{" : L"["; 
-            break;
-        case VK_OEM_6: 
-            punctChar = isShiftPressed ? L"}" : L"]"; 
-            break;
-        case VK_SPACE: punctChar = L" "; break;
-        case VK_OEM_7: 
-            if (isShiftPressed) {
-                punctChar.push_back(L'"');
-            } else {
-                punctChar = L"'";
-            }
-            break;
-            
-        // 修正：減號和下劃線的按鍵映射
-        case VK_OEM_MINUS: 
-            punctChar = isShiftPressed ? L"_" : L"-";           // Shift+- = 下劃線，- = 減號
-            break;
-        case VK_OEM_PLUS: 
-            punctChar = isShiftPressed ? L"+" : L"=";           // Shift+= = 加號，= = 等號
-            break;
-            
-        // 其他標點符號按鍵映射
+        case VK_OEM_1: punctChar = isShiftPressed ? L":" : L";"; break;
+        case VK_OEM_4: punctChar = isShiftPressed ? L"{" : L"["; break;
+        case VK_OEM_6: punctChar = isShiftPressed ? L"}" : L"]"; break;
+        case VK_OEM_7: punctChar = isShiftPressed ? L"\"" : L"'"; break;
+        case VK_OEM_MINUS: punctChar = isShiftPressed ? L"_" : L"-"; break;
+        case VK_OEM_PLUS: punctChar = isShiftPressed ? L"+" : L"="; break;
         case VK_OEM_5: punctChar = isShiftPressed ? L"|" : L"\\"; break;
         case VK_OEM_3: punctChar = isShiftPressed ? L"~" : L"`"; break;
+        case VK_SPACE: punctChar = L" "; break;
+        case '1': if (isShiftPressed) punctChar = L"!"; break;
         case '2': if (isShiftPressed) punctChar = L"@"; break;
         case '3': if (isShiftPressed) punctChar = L"#"; break;
         case '4': if (isShiftPressed) punctChar = L"$"; break;
@@ -944,31 +1200,31 @@ void process_punctuator(DWORD key) {
         case '6': if (isShiftPressed) punctChar = L"^"; break;
         case '7': if (isShiftPressed) punctChar = L"&"; break;
         case '8': if (isShiftPressed) punctChar = L"*"; break;
+        case '9': if (isShiftPressed) punctChar = L"("; break;
+        case '0': if (isShiftPressed) punctChar = L")"; break;
     }
     
     if (!punctChar.empty() && g_punct.count(punctChar)) {
         vector<wstring> options = g_punct[punctChar];
         if (!options.empty()) {
             wstring selectedPunct;
+            
             if (punctChar == L" ") {
                 selectedPunct = L" ";
             } else if (punctChar == L"'") {
                 selectedPunct = g_chineseMode ? L"、" : L"'";
-			}
-             else {
-                if (punctChar[0] == L'"' || punctChar == L"[" || punctChar == L"]" || punctChar == L"{" || punctChar == L"}") {
-                    selectedPunct = g_chineseMode ? options[0] : options.back();
-                } else {
-                    selectedPunct = g_chineseMode ? options[0] : (options.size() > 1 ? options[1] : options[0]);
-                }
+            } else {
+                selectedPunct = g_chineseMode ? options[0] : 
+                    (options.size() > 1 ? options[1] : options[0]);
             }
-            send_text_direct_unicode(selectedPunct);
-            update_status(L"輸入標點：" + selectedPunct);
+            
+            send_text(selectedPunct);
+            
+            wstring modeDesc = g_chineseMode ? L"全形" : L"半形";
+            update_status(L"輸入" + modeDesc + L"標點：" + selectedPunct);
         }
     }
 }
-
-
 
 void change_page(int direction) {
     if (!g_showCand || g_totalPages <= 1) return;
@@ -979,18 +1235,15 @@ void change_page(int direction) {
         g_currentPage--;
         g_selected = 0;
     }
-    update_status(L"第" + to_wstring(g_currentPage + 1) + L"/" + to_wstring(g_totalPages) + L"頁 共" + to_wstring(g_candidates.size()) + L"個候選字");
     if (g_hCandWnd) InvalidateRect(g_hCandWnd, nullptr, TRUE);
 }
 
-// 修正：避免標點符號選單項目被學習
 void select_candidate(int idx) {
     int actualIndex = g_currentPage * CANDIDATES_PER_PAGE + idx;
     if (actualIndex < 0 || actualIndex >= (int)g_candidates.size()) return;
     wstring selected = g_candidates[actualIndex];
-    send_text_direct_unicode(selected);
+    send_text(selected);
     
-    // 修正：只學習非標點符號選單的詞語，learn_word函數內部會再次過濾標點符號
     if (!g_showPunctMenu) {
         learn_word(selected);
         save_userdict();
@@ -1004,132 +1257,19 @@ void select_candidate(int idx) {
     g_inputError = false;
     g_showPunctMenu = false;
     if (g_hCandWnd) ShowWindow(g_hCandWnd, SW_HIDE);
+    if (g_hInputWnd) ShowWindow(g_hInputWnd, SW_HIDE);
     if (g_hWnd) InvalidateRect(g_hWnd, nullptr, TRUE);
 }
 
-void draw_close_button(HDC hdc, RECT windowRect) {
-    int buttonSize = 18;
-    g_closeButtonRect.left = windowRect.right - buttonSize - 3;
-    g_closeButtonRect.top = windowRect.top + 3;
-    g_closeButtonRect.right = g_closeButtonRect.left + buttonSize;
-    g_closeButtonRect.bottom = g_closeButtonRect.top + buttonSize;
-    COLORREF buttonColor = g_closeButtonHover ? g_closeButtonHoverColor : g_closeButtonColor;
-    HBRUSH hBrush = CreateSolidBrush(buttonColor);
-    FillRect(hdc, &g_closeButtonRect, hBrush);
-    DeleteObject(hBrush);
-    HPEN hPen = CreatePen(PS_SOLID, 2, RGB(255,255,255));
-    HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
-    int margin = 3;
-    MoveToEx(hdc, g_closeButtonRect.left + margin, g_closeButtonRect.top + margin, NULL);
-    LineTo(hdc, g_closeButtonRect.right - margin, g_closeButtonRect.bottom - margin);
-    MoveToEx(hdc, g_closeButtonRect.right - margin, g_closeButtonRect.top + margin, NULL);
-    LineTo(hdc, g_closeButtonRect.left + margin, g_closeButtonRect.bottom - margin);
-    SelectObject(hdc, hOldPen);
-    DeleteObject(hPen);
-}
-
-void draw_mode_button(HDC hdc, RECT windowRect) {
-    int buttonSize = 18;
-    g_modeButtonRect.left = windowRect.right - buttonSize - 25;
-    g_modeButtonRect.top = windowRect.top + 3;
-    g_modeButtonRect.right = g_modeButtonRect.left + buttonSize;
-    g_modeButtonRect.bottom = g_modeButtonRect.top + buttonSize;
-    COLORREF buttonColor = g_modeButtonHover ? g_modeButtonHoverColor : g_modeButtonColor;
-    HBRUSH hBrush = CreateSolidBrush(buttonColor);
-    FillRect(hdc, &g_modeButtonRect, hBrush);
-    DeleteObject(hBrush);
-    HFONT hSmallFont = CreateFontW(10,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,DEFAULT_QUALITY,DEFAULT_PITCH|FF_DONTCARE,L"Arial");
-    HFONT hOldFont = (HFONT)SelectObject(hdc, hSmallFont);
-    SetTextColor(hdc, RGB(255,255,255));
-    SetBkMode(hdc, TRANSPARENT);
-    wstring buttonText = g_chineseMode ? L"中" : L"英";
-    TextOutW(hdc, g_modeButtonRect.left + 4, g_modeButtonRect.top + 2, buttonText.c_str(), (int)buttonText.size());
-    SelectObject(hdc, hOldFont);
-    DeleteObject(hSmallFont);
-}
-
-void draw_credits_button(HDC hdc, RECT windowRect) {
-    int buttonSize = 18;
-    g_creditsButtonRect.left = windowRect.right - buttonSize - 47;
-    g_creditsButtonRect.top = windowRect.top + 3;
-    g_creditsButtonRect.right = g_creditsButtonRect.left + buttonSize;
-    g_creditsButtonRect.bottom = g_creditsButtonRect.top + buttonSize;
-    COLORREF buttonColor = g_creditsButtonHover ? g_creditsButtonHoverColor : g_creditsButtonColor;
-    HBRUSH hBrush = CreateSolidBrush(buttonColor);
-    FillRect(hdc, &g_creditsButtonRect, hBrush);
-    DeleteObject(hBrush);
-    HFONT hSmallFont = CreateFontW(10,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,DEFAULT_QUALITY,DEFAULT_PITCH|FF_DONTCARE,L"Arial");
-    HFONT hOldFont = (HFONT)SelectObject(hdc, hSmallFont);
-    SetTextColor(hdc, RGB(255,255,255));
-    SetBkMode(hdc, TRANSPARENT);
-    TextOutW(hdc, g_creditsButtonRect.left + 6, g_creditsButtonRect.top + 2, L"？", 1);
-    SelectObject(hdc, hOldFont);
-    DeleteObject(hSmallFont);
-}
-
-void draw_refresh_button(HDC hdc, RECT windowRect) {
-    int buttonSize = 18;
-    g_refreshButtonRect.left = windowRect.right - buttonSize - 69;
-    g_refreshButtonRect.top = windowRect.top + 3;
-    g_refreshButtonRect.right = g_refreshButtonRect.left + buttonSize;
-    g_refreshButtonRect.bottom = g_refreshButtonRect.top + buttonSize;
-    COLORREF buttonColor = g_refreshButtonHover ? g_refreshButtonHoverColor : g_refreshButtonColor;
-    HBRUSH hBrush = CreateSolidBrush(buttonColor);
-    FillRect(hdc, &g_refreshButtonRect, hBrush);
-    DeleteObject(hBrush);
-    HFONT hSmallFont = CreateFontW(10,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,DEFAULT_QUALITY,DEFAULT_PITCH|FF_DONTCARE,L"Arial");
-    HFONT hOldFont = (HFONT)SelectObject(hdc, hSmallFont);
-    SetTextColor(hdc, RGB(255,255,255));
-    SetBkMode(hdc, TRANSPARENT);
-    TextOutW(hdc, g_refreshButtonRect.left + 5, g_refreshButtonRect.top + 2, L"⟳", 1);
-    SelectObject(hdc, hOldFont);
-    DeleteObject(hSmallFont);
-}
-
-void draw_main(HWND hwnd, HDC hdc) {
-    RECT rc; GetClientRect(hwnd, &rc);
-    SetBkMode(hdc, TRANSPARENT);
-    HBRUSH hBg = CreateSolidBrush(g_bgColor);
+// ========== 優化的繪製函數 ==========
+void draw_toolbar(HDC hdc, RECT rc) {
+    // 背景（與附件保持一致）
+    HBRUSH hBg = CreateSolidBrush(g_toolbarBgColor);
     FillRect(hdc, &rc, hBg);
     DeleteObject(hBg);
-    draw_close_button(hdc, rc);
-    draw_mode_button(hdc, rc);
-    draw_credits_button(hdc, rc);
-    draw_refresh_button(hdc, rc);
-    HFONT hFont = CreateFontW(g_fontSize,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,DEFAULT_QUALITY,DEFAULT_PITCH|FF_DONTCARE,g_fontName.c_str());
-    HFONT hOld = (HFONT)SelectObject(hdc, hFont);
-    SetTextColor(hdc, g_chineseMode ? RGB(0,150,0) : RGB(0,100,200));
-    wstring mode = g_chineseMode ? L"中文+全形" : L"英文+半形";
-    TextOutW(hdc, 10, 5, mode.c_str(), (int)mode.size());
-    SetTextColor(hdc, g_inputError ? g_errorColor : g_textColor);
-    wstring display;
-    if (g_showPunctMenu) {
-        display = L"標點符號選單（P鍵開啟）";
-    } else if (g_input.empty()) {
-        display = g_chineseMode ? L"中文筆劃輸入法（UIOJKL）P=標點，Shift=切換" : L"英文直接輸入，Shift=切換";
-    } else if (g_inputError) {
-        display = L"輸入不當：" + g_input;
-    } else {
-        display = g_input;
-    }
-    TextOutW(hdc, 100, 5, display.c_str(), (int)display.size());
-    SetTextColor(hdc, RGB(100, 100, 100));
-    TextOutW(hdc, 10, 25, g_statusInfo.c_str(), (int)g_statusInfo.size());
-    wstring info = L"測試版 6.0 | 記憶詞庫：" + to_wstring(g_wordFreq.size()) + L" | 字典：" + to_wstring(g_dictSize);
-    TextOutW(hdc, 10, 45, info.c_str(), (int)info.size());
-    SelectObject(hdc, hOld); DeleteObject(hFont);
-}
-
-// 修正：完全重寫候選字繪製函數，使用專用配色變數
-void draw_cand(HWND hwnd, HDC hdc) {
-    if (g_candidates.empty()) return;
     
-    RECT rc; 
-    GetClientRect(hwnd, &rc);
-    SetBkMode(hdc, TRANSPARENT);
-    
-    // 繪製邊框，使用空刷子避免覆蓋背景
-    HPEN hPen = CreatePen(PS_SOLID, 1, RGB(180,180,180));
+    // 邊框
+    HPEN hPen = CreatePen(PS_SOLID, 1, g_toolbarBorderColor);
     HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
     HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
     Rectangle(hdc, 0, 0, rc.right, rc.bottom);
@@ -1137,27 +1277,185 @@ void draw_cand(HWND hwnd, HDC hdc) {
     SelectObject(hdc, hOldPen);
     DeleteObject(hPen);
     
-    // 使用候選字專用字體
-    HFONT hFont = CreateFontW(
-        g_candidateFontSize,
-        0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,
-        DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
-        DEFAULT_QUALITY,DEFAULT_PITCH|FF_DONTCARE,
-        g_candidateFontName.c_str()
-    );
+    SetBkMode(hdc, TRANSPARENT);
     
+    int x = 5;
+    int y = (rc.bottom - 22) / 2;
+    
+    HFONT hFont = CreateFontW(18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Microsoft JhengHei");
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    
+    SetTextColor(hdc, RGB(60, 60, 60));
+    TextOutW(hdc, x, y + 3, L"筆劃", 2);
+    x += 50;
+    
+    // 模式指示器（與附件保持一致的大小）
+    g_modeIndicatorRect = {x, y, x + 35, y + 22};
+    COLORREF modeColor = g_chineseMode ? g_modeActiveColor : g_modeInactiveColor;
+    if (g_modeIndicatorHover) modeColor = g_buttonHoverColor;
+    
+    HBRUSH hModeBrush = CreateSolidBrush(modeColor);
+    FillRect(hdc, &g_modeIndicatorRect, hModeBrush);
+    DeleteObject(hModeBrush);
+    
+    SetTextColor(hdc, RGB(255, 255, 255));
+    wstring modeText = g_chineseMode ? L"中" : L"EN";
+    RECT modeTextRect = g_modeIndicatorRect;
+    DrawTextW(hdc, modeText.c_str(), -1, &modeTextRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    x += 40;
+    
+    // 狀態指示器
+    g_statusIndicatorRect = {x, y + 8, x + 6, y + 14};
+    COLORREF statusColor = g_statusReadyColor;
+    if (g_inputError) statusColor = g_statusErrorColor;
+    else if (g_isInputting) statusColor = g_statusInputColor;
+    else if (g_useUserPosition) statusColor = RGB(255, 140, 0);
+    
+    HBRUSH hStatusBrush = CreateSolidBrush(statusColor);
+    HPEN hStatusPen = CreatePen(PS_SOLID, 1, RGB(100, 100, 100));
+    SelectObject(hdc, hStatusPen);
+    SelectObject(hdc, hStatusBrush);
+    Ellipse(hdc, g_statusIndicatorRect.left, g_statusIndicatorRect.top,
+            g_statusIndicatorRect.right, g_statusIndicatorRect.bottom);
+    DeleteObject(hStatusBrush);
+    DeleteObject(hStatusPen);
+    x += 12;
+    
+    // 選單按鈕（與附件保持一致的大小）
+    g_menuButtonRect = {x, y, x + 40, y + 22};
+    if (g_menuButtonHover) {
+        HBRUSH hMenuBrush = CreateSolidBrush(g_buttonHoverColor);
+        FillRect(hdc, &g_menuButtonRect, hMenuBrush);
+        DeleteObject(hMenuBrush);
+    }
+    SetTextColor(hdc, RGB(60, 60, 60));
+    DrawTextW(hdc, L"☰", -1, &g_menuButtonRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    x += 45;
+    
+    // 重置按鈕（與附件保持一致的大小）
+    g_restoreButtonRect = {x, y, x + 35, y + 22};
+	if (g_restoreButtonHover) {
+    HBRUSH hResetBrush = CreateSolidBrush(g_buttonHoverColor);
+    FillRect(hdc, &g_restoreButtonRect, hResetBrush);
+    DeleteObject(hResetBrush);
+	}
+
+	HFONT hResetFont = CreateFontW(25, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+    DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Microsoft JhengHei");
+
+	HFONT hOldResetFont = (HFONT)SelectObject(hdc, hResetFont);
+	SetTextColor(hdc, RGB(60, 60, 60));
+	DrawTextW(hdc, L"⿻", -1, &g_restoreButtonRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+	SelectObject(hdc, hOldResetFont);
+	DeleteObject(hResetFont);
+	x += 40;
+    
+    // 最小化按鈕（與附件保持一致的大小）
+    g_minimizeButtonRect = {x, y, x + 20, y + 22};
+    if (g_minimizeButtonHover) {
+        HBRUSH hMinBrush = CreateSolidBrush(g_buttonHoverColor);
+        FillRect(hdc, &g_minimizeButtonRect, hMinBrush);
+        DeleteObject(hMinBrush);
+    }
+    SetTextColor(hdc, RGB(60, 60, 60));
+    DrawTextW(hdc, L"─", -1, &g_minimizeButtonRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    x += 25;
+    
+    // 關閉按鈕（與附件保持一致的大小）
+    g_closeButtonRect = {x, y, x + 20, y + 22};
+    COLORREF closeColor = g_closeButtonHover ? RGB(255, 70, 70) : g_closeButtonColor;
+    HBRUSH hCloseBrush = CreateSolidBrush(closeColor);
+    FillRect(hdc, &g_closeButtonRect, hCloseBrush);
+    DeleteObject(hCloseBrush);
+    
+    SetTextColor(hdc, RGB(255, 255, 255));
+    DrawTextW(hdc, L"×", -1, &g_closeButtonRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    
+    SelectObject(hdc, hOldFont);
+    DeleteObject(hFont);
+}
+
+
+void draw_input(HDC hdc, RECT rc) {
+    // 背景
+    HBRUSH hBg = CreateSolidBrush(g_inputBackgroundColor);
+    FillRect(hdc, &rc, hBg);
+    DeleteObject(hBg);
+    
+    // 邊框
+    HPEN hPen = CreatePen(PS_SOLID, 1, g_inputBorderColor);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
+    HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+    Rectangle(hdc, 0, 0, rc.right, rc.bottom);
+    SelectObject(hdc, hOldBrush);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPen);
+    
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, g_inputTextColor);
+    
+    HFONT hFont = CreateFontW(g_inputFontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, g_inputFontName.c_str());
     HFONT hOld = (HFONT)SelectObject(hdc, hFont);
     
-    int lineHeight = g_candidateFontSize + 6;
+    wstring display = get_input_display();
+    if (!display.empty()) {
+        // 確保文字不會超出視窗邊界
+        RECT textRect = {8, 8, rc.right - 8, rc.bottom - 8};
+        DrawTextW(hdc, display.c_str(), -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+    
+
+    
+    SelectObject(hdc, hOld);
+    DeleteObject(hFont);
+}
+
+void draw_candidates(HDC hdc, RECT rc) {
+    if (g_candidates.empty()) return;
+    
+    // 背景
+    HBRUSH hBg = CreateSolidBrush(g_candidateBackgroundColor);
+    FillRect(hdc, &rc, hBg);
+    DeleteObject(hBg);
+    
+    // 邊框
+    HPEN hPen = CreatePen(PS_SOLID, 1, g_candidateBorderColor);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
+    HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+    Rectangle(hdc, 0, 0, rc.right, rc.bottom);
+    SelectObject(hdc, hOldBrush);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPen);
+    
+    SetBkMode(hdc, TRANSPARENT);
+    
+    HFONT hFont = CreateFontW(g_candidateFontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, g_candidateFontName.c_str());
+    HFONT hOld = (HFONT)SelectObject(hdc, hFont);
+    
+    int lineHeight = g_candidateFontSize + 8;
+    int startY = 8;
+    
+
+    
+    // 候選字列表
     int startIndex = g_currentPage * CANDIDATES_PER_PAGE;
     int endIndex = min(startIndex + CANDIDATES_PER_PAGE, (int)g_candidates.size());
     
     for (int i = 0; i < endIndex - startIndex; ++i) {
         int actualIndex = startIndex + i;
+        int yPos = startY + i * lineHeight;
         
-        // 修正：使用候選字專用文字顏色
+        // 選中項背景
         if (i == g_selected) {
-            RECT bgRect = {8, 8 + i * lineHeight, rc.right - 8, 8 + (i + 1) * lineHeight};
+            RECT bgRect = {2, yPos - 2, rc.right - 2, yPos + lineHeight - 2};
             HBRUSH hBrush = CreateSolidBrush(g_selectedCandidateBackgroundColor);
             FillRect(hdc, &bgRect, hBrush);
             DeleteObject(hBrush);
@@ -1166,241 +1464,1021 @@ void draw_cand(HWND hwnd, HDC hdc) {
             SetTextColor(hdc, g_candidateTextColor);
         }
         
-        wstring txt;
-        if (g_showPunctMenu) {
-            txt = to_wstring(i+1) + L". " + g_candidates[actualIndex];
-        } else {
-            wstring codeInfo = L" [" + g_candidateCodes[actualIndex] + L"]";
-            wstring detailInfo = L"";
-            if (g_wordFreq.find(g_candidates[actualIndex]) != g_wordFreq.end()) {
-                const WordInfo& info = g_wordFreq[g_candidates[actualIndex]];
-                double score = get_word_score(g_candidates[actualIndex], g_candidateCodes[actualIndex]);
-                detailInfo = L"(" + to_wstring(info.frequency) + L"," + to_wstring((int)score) + L")";
-                if (!info.isPermanent) detailInfo += L"[暫]";
+        // 構建顯示文字
+        wstring txt = to_wstring(i+1) + L". " + g_candidates[actualIndex];
+        
+        // 學習狀態標記
+        if (!g_showPunctMenu && g_wordFreq.find(g_candidates[actualIndex]) != g_wordFreq.end()) {
+            const WordInfo& info = g_wordFreq[g_candidates[actualIndex]];
+            if (info.isPermanent) {
+                txt += L" ★";
+            } else {
+                txt += L" (" + to_wstring(info.frequency) + L")";
             }
-            txt = to_wstring(i+1) + L". " + g_candidates[actualIndex] + codeInfo + detailInfo;
         }
-        TextOutW(hdc, 15, 10 + i * lineHeight, txt.c_str(), (int)txt.size());
+        
+        // 編碼顯示
+        if (!g_showPunctMenu && actualIndex < g_candidateCodes.size()) {
+            txt += L" [" + g_candidateCodes[actualIndex] + L"]";
+        }
+        
+        // 確保文字不會超出邊界
+        RECT textRect = {8, yPos, rc.right - 8, yPos + lineHeight};
+        DrawTextW(hdc, txt.c_str(), -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }
     
+    // 優化的分頁控制
     if (g_totalPages > 1) {
-        SetTextColor(hdc, RGB(150, 150, 150));
-        wstring pageInfo = L"↑↓翻頁 " + to_wstring(g_currentPage + 1) + L"/" + to_wstring(g_totalPages);
-        TextOutW(hdc, 15, 10 + CANDIDATES_PER_PAGE * lineHeight, pageInfo.c_str(), (int)pageInfo.size());
+        int buttonY = startY + CANDIDATES_PER_PAGE * lineHeight + 5;
+        
+        SetTextColor(hdc, RGB(80, 80, 80));
+        
+        // 上一頁按鈕
+        RECT upRect = {8, buttonY, 35, buttonY + PAGE_BUTTON_HEIGHT};
+        if (g_currentPage > 0) {
+            HBRUSH hUpBrush = CreateSolidBrush(RGB(240, 240, 240));
+            FillRect(hdc, &upRect, hUpBrush);
+            DeleteObject(hUpBrush);
+            
+            HPEN hUpPen = CreatePen(PS_SOLID, 1, RGB(180, 180, 180));
+            SelectObject(hdc, hUpPen);
+            SelectObject(hdc, GetStockObject(NULL_BRUSH));
+            Rectangle(hdc, upRect.left, upRect.top, upRect.right, upRect.bottom);
+            DeleteObject(hUpPen);
+            
+            SetTextColor(hdc, RGB(0, 0, 0));
+            DrawTextW(hdc, L"▲", -1, &upRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        } else {
+            SetTextColor(hdc, RGB(180, 180, 180));
+            DrawTextW(hdc, L"▲", -1, &upRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+        
+        // 下一頁按鈕
+        RECT downRect = {40, buttonY, 67, buttonY + PAGE_BUTTON_HEIGHT};
+        if (g_currentPage < g_totalPages - 1) {
+            HBRUSH hDownBrush = CreateSolidBrush(RGB(240, 240, 240));
+            FillRect(hdc, &downRect, hDownBrush);
+            DeleteObject(hDownBrush);
+            
+            HPEN hDownPen = CreatePen(PS_SOLID, 1, RGB(180, 180, 180));
+            SelectObject(hdc, hDownPen);
+            SelectObject(hdc, GetStockObject(NULL_BRUSH));
+            Rectangle(hdc, downRect.left, downRect.top, downRect.right, downRect.bottom);
+            DeleteObject(hDownPen);
+            
+            SetTextColor(hdc, RGB(0, 0, 0));
+            DrawTextW(hdc, L"▼", -1, &downRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        } else {
+            SetTextColor(hdc, RGB(180, 180, 180));
+            DrawTextW(hdc, L"▼", -1, &downRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+        
+        // 分頁信息
+        SetTextColor(hdc, RGB(100, 100, 100));
+        wstring pageInfo = to_wstring(g_currentPage + 1) + L"/" + to_wstring(g_totalPages);
+        pageInfo += L" (共" + to_wstring(g_candidates.size()) + L"個)";
+        TextOutW(hdc, 75, buttonY + 4, pageInfo.c_str(), (int)pageInfo.size());
+        
+        // 操作提示
+        SetTextColor(hdc, RGB(120, 120, 120));
+        wstring hintText = L"↑↓鍵翻頁 | 1-9選字 | 空格選首字";
+        int hintX = rc.right - 200;
+        if (hintX < 75 + (int)pageInfo.size() * 8 + 10) {
+            hintX = 75 + (int)pageInfo.size() * 8 + 10;
+        }
+        if (hintX + 180 < rc.right - 5) {
+            TextOutW(hdc, hintX, buttonY + 4, hintText.c_str(), (int)hintText.size());
+        }
     }
     
-    SelectObject(hdc, hOld); 
+    SelectObject(hdc, hOld);
     DeleteObject(hFont);
 }
 
-bool is_point_in_close_button(int x, int y) { return (x >= g_closeButtonRect.left && x <= g_closeButtonRect.right && y >= g_closeButtonRect.top && y <= g_closeButtonRect.bottom); }
-bool is_point_in_mode_button(int x, int y) { return (x >= g_modeButtonRect.left && x <= g_modeButtonRect.right && y >= g_modeButtonRect.top && y <= g_modeButtonRect.bottom); }
-bool is_point_in_credits_button(int x, int y) { return (x >= g_creditsButtonRect.left && x <= g_creditsButtonRect.right && y >= g_creditsButtonRect.top && y <= g_creditsButtonRect.bottom); }
-bool is_point_in_refresh_button(int x, int y) { return (x >= g_refreshButtonRect.left && x <= g_refreshButtonRect.right && y >= g_refreshButtonRect.top && y <= g_refreshButtonRect.bottom); }
+bool is_point_in_rect(int x, int y, const RECT& rect) {
+    return (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
+}
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-    switch (msg) {
-    case WM_DESTROY:
-        if (g_hKeyboardHook) { UnhookWindowsHookEx(g_hKeyboardHook); g_hKeyboardHook = NULL; }
-        save_userdict();
-        PostQuitMessage(0); 
-        return 0;
-        
-    case WM_USER+100: {
-        DWORD key = (DWORD)wp;
-        
-        if (g_chineseMode && (key == 'U' || key == 'I' || key == 'O' || key == 'J' || key == 'K' || key == 'L' || key == 'P' || key == VK_NUMPAD7 || key == VK_NUMPAD8 || key == VK_NUMPAD9 || key == VK_NUMPAD4 || key == VK_NUMPAD5 || key == VK_NUMPAD0)) { 
-            process_stroke(key); 
-            return 0; 
-        }
-        
-        // 修正：添加完整的標點符號鍵檢查
-        if (key == VK_OEM_COMMA || key == VK_OEM_PERIOD || key == VK_OEM_2 || key == VK_OEM_1 || 
-            key == VK_OEM_4 || key == VK_OEM_6 || key == VK_OEM_7 || key == VK_SPACE ||
-            key == VK_OEM_MINUS || key == VK_OEM_PLUS || key == VK_OEM_5 || key == VK_OEM_3 ||
-            (key == '1' && (GetKeyState(VK_SHIFT) & 0x8000)) || 
-            (key == '2' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
-            (key == '3' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
-            (key == '4' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
-            (key == '5' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
-            (key == '6' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
-            (key == '7' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
-            (key == '8' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
-            (key == '9' && (GetKeyState(VK_SHIFT) & 0x8000)) || 
-            (key == '0' && (GetKeyState(VK_SHIFT) & 0x8000))) { 
-            process_punctuator(key); 
-            return 0; 
-        }
-        
-        if (key == VK_DOWN) { change_page(1); return 0; }
-        if (key == VK_UP) { change_page(-1); return 0; }
-        if (key >= '1' && key <= '9') { select_candidate(key - '1'); return 0; }
-        if (key == VK_BACK) { if (!g_input.empty()) { g_input.pop_back(); update_candidates(); InvalidateRect(hwnd, nullptr, TRUE); } return 0; }
-        if (key == VK_SPACE) { select_candidate(0); return 0; }
-        if (key == VK_ESCAPE) { g_input.clear(); g_candidates.clear(); g_candidateCodes.clear(); g_showCand = false; g_isInputting = false; g_inputError = false; g_showPunctMenu = false; if (g_hCandWnd) ShowWindow(g_hCandWnd, SW_HIDE); update_status(L"已清除輸入"); InvalidateRect(hwnd, nullptr, TRUE); return 0; }
-        
-        break; 
+void show_context_menu(HWND hwnd) {
+    HMENU hMenu = CreatePopupMenu();
+    AppendMenu(hMenu, MF_STRING, 1001, L"標點符號選單");
+    AppendMenu(hMenu, MF_STRING, 1002, L"重新載入字典");
+    AppendMenu(hMenu, MF_STRING, 1005, L"重新載入配置");
+    AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenu(hMenu, MF_STRING, 1003, L"關於");
+    
+    POINT pt;
+    GetCursorPos(&pt);
+    TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+    DestroyMenu(hMenu);
+}
+
+void show_about_dialog(HWND hwnd) {
+    MessageBoxW(hwnd,
+        L"Toolbar版中文筆劃輸入法 Ver1\n\n"
+        L"🎯 製作人員\n"
+        L"編寫員：Perplexity.ai\n"
+        L"測試員：山崎大叔（人類）\n\n"
+        L"✨ 主要特色\n"
+        L"✓ 免安裝、免Admin權限\n"
+        L"✓ 隨身攜帶、即開即用\n"
+        L"✓ 多螢幕完全支援\n"
+        L"✓ 托盤右鍵快捷功能\n\n"
+        L"⌨️ 基本操作\n"
+        L"• U I O J K：基本筆劃輸入\n"
+        L"• 1-9數字鍵：選擇候選字\n"
+        L"• Shift鍵：切換中英文模式\n"
+        L"• 右鍵托盤圖示：快捷選單\n\n"
+        L"感謝您的使用！", 
+        L"關於 - Toolbar版筆劃輸入法",
+        MB_OK | MB_ICONINFORMATION);
+}
+
+// ========== 配置重新載入功能 ==========
+void reload_all_configurations() {
+    load_interface_config();
+    load_punctuator();
+    load_userdict();
+    load_positions();
+    load_punct_menu();
+	
+    
+    if (g_isInputting) {
+        update_candidates_enhanced();
     }
     
-    case WM_PAINT: { 
-        PAINTSTRUCT ps; 
-        HDC hdc = BeginPaint(hwnd, &ps); 
-        draw_main(hwnd, hdc); 
-        EndPaint(hwnd, &ps); 
-        return 0; 
+    // 重新繪製所有視窗以應用新配置
+    if (g_hWnd) {
+        InvalidateRect(g_hWnd, NULL, TRUE);
+        UpdateWindow(g_hWnd);
     }
     
-    case WM_LBUTTONDOWN: {
-        int x = LOWORD(lp); int y = HIWORD(lp);
-        if (is_point_in_close_button(x, y)) { 
-            if (MessageBoxW(hwnd, L"確定要關閉中文筆劃輸入法嗎？", L"確認關閉", MB_YESNO | MB_ICONQUESTION) == IDYES) { 
-                PostMessage(hwnd, WM_CLOSE, 0, 0); 
-            } 
-            return 0; 
-        }
-        if (is_point_in_mode_button(x, y)) { toggle_input_mode(); return 0; }
-        if (is_point_in_credits_button(x, y)) { 
-            MessageBoxW(hwnd, L"中文筆劃輸入法 - 測試版 6.0 \n\n編寫員：Perplexity.ai\n測試員：山崎大叔（人類）\n\n本次新增功能：\n• 通配符參考G6(3+3)模式\n• 配置刷新按鈕(⟳)\n• 新增punct_menu.txt自訂P鍵標點符號選單\n• 支援interface_config.ini介面配置\n• Colors - 顏色配置\n• Font - 主視窗字體+候選字字體\n• Window - 視窗大小設定 \n\n感謝您的使用！", L"製作人員", MB_OK | MB_ICONINFORMATION); 
-            return 0; 
-        }
-        if (is_point_in_refresh_button(x, y)) { 
-            load_interface_config();
-            load_dict("Zi-Ma-Biao.txt", g_dict);
-            load_punct_menu_from_file();
-            load_userdict();
-            update_candidates();
-            InvalidateRect(hwnd, nullptr, TRUE); 
-            if (g_hCandWnd) InvalidateRect(g_hCandWnd, nullptr, TRUE);
-            return 0; 
-        }
-        g_isDragging = true; 
-        SetCapture(hwnd); 
-        g_dragStartPoint.x = x; 
-        g_dragStartPoint.y = y; 
-        return 0;
+    if (g_hInputWnd) {
+        InvalidateRect(g_hInputWnd, NULL, TRUE);
+        UpdateWindow(g_hInputWnd);
     }
     
-    case WM_MOUSEMOVE: {
-        if (g_isDragging) {
-            POINT pt; GetCursorPos(&pt);
-            RECT mainRect; GetWindowRect(hwnd, &mainRect);
-            int offsetX = g_dragStartPoint.x; int offsetY = g_dragStartPoint.y;
-            int newX = pt.x - offsetX; int newY = pt.y - offsetY;
-            HDWP hdwp = BeginDeferWindowPos(2);
-            if (hdwp) {
-                RECT candRect; GetWindowRect(g_hCandWnd, &candRect);
-                int candOffsetX = mainRect.left - candRect.left; int candOffsetY = mainRect.top - candRect.top;
-                hdwp = DeferWindowPos(hdwp, hwnd, NULL, newX, newY, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-                if (g_hCandWnd) { 
-                    hdwp = DeferWindowPos(hdwp, g_hCandWnd, NULL, newX - candOffsetX, newY - candOffsetY, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE); 
+    if (g_hCandWnd) {
+        InvalidateRect(g_hCandWnd, NULL, TRUE);
+        UpdateWindow(g_hCandWnd);
+    }
+    
+    update_status(L"介面配置已重新載入");
+}
+
+
+
+
+// ========== 系統托盤功能 ==========
+void create_tray_icon() {
+    g_nid.cbSize = sizeof(NOTIFYICONDATA);
+    g_nid.hWnd = g_hWnd;
+    g_nid.uID = 1;
+    g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    g_nid.uCallbackMessage = WM_USER + 200;
+    g_nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    wcscpy_s(g_nid.szTip, L"筆劃輸入法");
+    Shell_NotifyIcon(NIM_ADD, &g_nid);
+}
+
+void remove_tray_icon() {
+    Shell_NotifyIcon(NIM_DELETE, &g_nid);
+}
+
+
+
+void show_from_tray() {
+    g_isMinimized = false;
+    ShowWindow(g_hWnd, SW_SHOW);
+    SetForegroundWindow(g_hWnd);
+}
+
+void hide_to_tray() {
+    g_isMinimized = true;
+    ShowWindow(g_hWnd, SW_HIDE);
+}
+
+// ========== 鍵盤鉤子 ==========
+LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode >= 0) {
+        KBDLLHOOKSTRUCT* pKeyboard = (KBDLLHOOKSTRUCT*)lParam;
+        DWORD key = pKeyboard->vkCode;
+
+        if (wParam == WM_KEYDOWN) {
+            if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT) {
+                if (!g_shiftPressed) {
+                    g_shiftPressed = true;
+                    g_shiftUsedForCombo = false;
+                    g_shiftPressTime = GetTickCount();
                 }
-                EndDeferWindowPos(hdwp);
+            } else if (g_shiftPressed && key != VK_SHIFT) {
+                g_shiftUsedForCombo = true;
+            }
+        } else if (wParam == WM_KEYUP) {
+            if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT) {
+                if (g_shiftPressed) {
+                    g_shiftPressed = false;
+                    DWORD pressDuration = GetTickCount() - g_shiftPressTime;
+                    if (!g_shiftUsedForCombo && pressDuration < 500 && pressDuration > 30) {
+                        toggle_input_mode();
+                    }
+                    g_shiftUsedForCombo = false;
+                }
             }
         }
-        int x = LOWORD(lp); int y = HIWORD(lp);
-        bool wasCloseHover = g_closeButtonHover; 
-        bool wasModeHover = g_modeButtonHover; 
-        bool wasCreditsHover = g_creditsButtonHover; 
-        bool wasRefreshHover = g_refreshButtonHover;
         
-        g_closeButtonHover = is_point_in_close_button(x, y); 
-        g_modeButtonHover = is_point_in_mode_button(x, y); 
-        g_creditsButtonHover = is_point_in_credits_button(x, y); 
-        g_refreshButtonHover = is_point_in_refresh_button(x, y);
-        
-        if (wasCloseHover != g_closeButtonHover || wasModeHover != g_modeButtonHover || wasCreditsHover != g_creditsButtonHover || wasRefreshHover != g_refreshButtonHover) { 
-            InvalidateRect(hwnd, nullptr, TRUE); 
+        if (wParam == WM_KEYDOWN) {
+            bool isStrokeKey = (key == 'U' || key == 'I' || key == 'O' || key == 'J' || key == 'K' || key == 'L' || key == 'P' ||
+                                key == VK_NUMPAD7 || key == VK_NUMPAD8 || key == VK_NUMPAD9 || 
+                                key == VK_NUMPAD4 || key == VK_NUMPAD5 || key == VK_NUMPAD0);
+            
+            bool isPunctKey = (key == VK_OEM_COMMA || key == VK_OEM_PERIOD || key == VK_OEM_2 ||
+                   key == VK_OEM_1 || key == VK_OEM_4 || key == VK_OEM_6 || key == VK_OEM_7 ||
+                   key == VK_OEM_MINUS || key == VK_OEM_PLUS || key == VK_OEM_5 || key == VK_OEM_3 ||
+                   key == VK_SPACE ||
+                   (key == '1' && g_shiftPressed) || (key == '2' && g_shiftPressed) || 
+                   (key == '3' && g_shiftPressed) || (key == '4' && g_shiftPressed) || 
+                   (key == '5' && g_shiftPressed) || (key == '6' && g_shiftPressed) || 
+                   (key == '7' && g_shiftPressed) || (key == '8' && g_shiftPressed) || 
+                   (key == '9' && g_shiftPressed) || (key == '0' && g_shiftPressed));
+            
+            bool isFunctionKey = ((g_isInputting || g_showPunctMenu) && 
+                      (key == VK_SPACE || key == VK_BACK || key == VK_ESCAPE ||
+                       key == VK_UP || key == VK_DOWN || 
+                       (key >= '1' && key <= '9') ||
+                       (key >= VK_NUMPAD1 && key <= VK_NUMPAD9)));
+
+            if (g_chineseMode) {
+                if (isStrokeKey || isPunctKey || isFunctionKey) {
+                    PostMessage(g_hWnd, WM_USER+100, key, 0);
+                    return 1;
+                }
+            } else {
+                if (isPunctKey || isFunctionKey) {
+                     PostMessage(g_hWnd, WM_USER+100, key, 0);
+                     return 1;
+                }
+            }
         }
-        return 0;
     }
     
-    case WM_LBUTTONUP: { 
-        if (g_isDragging) { 
-            g_isDragging = false; 
-            ReleaseCapture(); 
+    return CallNextHookEx(g_hKeyboardHook, nCode, wParam, lParam);
+}
+
+// ========== 重啟輸入法功能 ==========
+void restart_ime() {
+    // 獲取當前執行檔路徑
+    wchar_t exePath[MAX_PATH];
+    GetModuleFileName(NULL, exePath, MAX_PATH);
+    
+    // 儲存當前設定
+    save_userdict();
+    save_positions();
+    
+    // 關閉鍵盤鉤子
+    if (g_hKeyboardHook) {
+        UnhookWindowsHookEx(g_hKeyboardHook);
+        g_hKeyboardHook = NULL;
+    }
+    
+    // 移除托盤圖示
+    remove_tray_icon();
+    
+    // 啟動新的程序實例
+    STARTUPINFO si = {0};
+    PROCESS_INFORMATION pi = {0};
+    si.cb = sizeof(STARTUPINFO);
+    
+    if (CreateProcess(exePath, NULL, NULL, NULL, FALSE, 
+                      0, NULL, NULL, &si, &pi)) {
+        // 成功啟動新實例，關閉當前實例
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        
+        // 延遲一下確保新程序啟動
+        Sleep(500);
+        
+        // 退出當前程序
+        PostQuitMessage(0);
+    } else {
+        // 啟動失敗，恢復托盤圖示
+        create_tray_icon();
+        
+        // 重新安裝鍵盤鉤子
+        HINSTANCE hInstance = GetModuleHandle(NULL);
+        g_hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardHookProc, hInstance, 0);
+        
+        MessageBoxW(NULL, L"重啟輸入法失敗！", L"錯誤", MB_OK | MB_ICONERROR);
+    }
+}
+
+// ========== 視窗處理程序 ==========
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+		case WM_DISPLAYCHANGE: {
+    // 記錄切換前的螢幕模式
+    static bool previousExtended = false;
+    static bool firstTime = true;
+    
+    if (firstTime) {
+        previousExtended = is_extended_mode();
+        firstTime = false;
+    }
+    
+    // 更新螢幕信息
+    update_monitor_info();
+    
+    // 檢測螢幕模式變更
+    bool currentExtended = is_extended_mode();
+    bool modeChanged = (previousExtended != currentExtended);
+    
+    if (modeChanged) {
+        // 螢幕模式發生變更，需要重新定位工具列
+        RECT safeScreen = get_safe_primary_screen();
+        
+        // 如果從延伸模式切換到鏡像模式
+        if (previousExtended && !currentExtended) {
+            // 副螢幕座標在鏡像模式下無效，強制移動到主螢幕
+            g_toolbarPos.x = safeScreen.left + 50;
+            g_toolbarPos.y = safeScreen.bottom - TOOLBAR_HEIGHT - 80;
+            
+            MessageBoxW(NULL, 
+                L"偵測到螢幕模式變更：延伸→同步\n"
+                L"工具列已自動移至主螢幕安全位置。", 
+                L"螢幕模式變更", MB_OK | MB_ICONINFORMATION);
+        }
+        // 如果從鏡像模式切換到延伸模式
+        else if (!previousExtended && currentExtended) {
+            // 檢查是否有延伸模式的記憶位置
+            if (g_screenModePositions.hasExtendedPos) {
+                g_toolbarPos = g_screenModePositions.extendedModePos;
+                
+                // 驗證記憶位置是否仍然有效
+                bool positionValid = false;
+                for (const auto& monitor : g_monitors) {
+                    if (g_toolbarPos.x >= monitor.workArea.left && 
+                        g_toolbarPos.x <= monitor.workArea.right - TOOLBAR_WIDTH &&
+                        g_toolbarPos.y >= monitor.workArea.top &&
+                        g_toolbarPos.y <= monitor.workArea.bottom - TOOLBAR_HEIGHT) {
+                        positionValid = true;
+                        break;
+                    }
+                }
+                
+                if (!positionValid) {
+                    g_toolbarPos.x = safeScreen.left + 50;
+                    g_toolbarPos.y = safeScreen.bottom - TOOLBAR_HEIGHT - 80;
+                }
+            }
+        }
+        
+        // 立即更新工具列位置
+        SetWindowPos(g_hWnd, NULL, g_toolbarPos.x, g_toolbarPos.y, 
+                     0, 0, SWP_NOSIZE | SWP_NOZORDER);
+        save_positions();
+        
+        // 更新記錄的螢幕模式
+        previousExtended = currentExtended;
+    } else {
+        // 沒有模式變更，但仍需驗證位置
+        bool toolbarVisible = false;
+        for (const auto& monitor : g_monitors) {
+            if (g_toolbarPos.x >= monitor.workArea.left && 
+                g_toolbarPos.x <= monitor.workArea.right - TOOLBAR_WIDTH &&
+                g_toolbarPos.y >= monitor.workArea.top &&
+                g_toolbarPos.y <= monitor.workArea.bottom - TOOLBAR_HEIGHT) {
+                toolbarVisible = true;
+                break;
+            }
+        }
+        
+        if (!toolbarVisible) {
+            RECT safeScreen = get_safe_primary_screen();
+            g_toolbarPos.x = safeScreen.left + 50;
+            g_toolbarPos.y = safeScreen.bottom - TOOLBAR_HEIGHT - 80;
+            
+            SetWindowPos(g_hWnd, NULL, g_toolbarPos.x, g_toolbarPos.y, 
+                         0, 0, SWP_NOSIZE | SWP_NOZORDER);
+            save_positions();
+            
+            update_status(L"工具列位置已自動修正");
+        }
+    }
+    
+    // 重新定位輸入視窗
+    if (g_isInputting) {
+        position_windows_optimized();
+    }
+    
+    return 0;
+}
+
+        case WM_DESTROY:
+            if (g_hKeyboardHook) { 
+                UnhookWindowsHookEx(g_hKeyboardHook); 
+                g_hKeyboardHook = NULL; 
+            }
+            remove_tray_icon();
+            save_userdict();
+            save_positions();
+            PostQuitMessage(0); 
+            return 0;
+            
+        case WM_USER + 200:
+    if (lp == WM_LBUTTONDOWN) {
+        if (g_isMinimized) {
+            show_from_tray();
+        }
+    } else if (lp == WM_RBUTTONDOWN) {
+        HMENU hMenu = CreatePopupMenu();
+        
+        // 基本功能
+        if (g_isMinimized) {
+            AppendMenu(hMenu, MF_STRING, 2001, L"🔍 顯示輸入法");
+        } else {
+            AppendMenu(hMenu, MF_STRING, 2001, L"📌 顯示/置前");
+        }
+        
+        AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+        
+        // 模式切換
+        wstring modeText = g_chineseMode ? L"🔄 切換到英文模式" : L"🔄 切換到中文模式";
+        AppendMenu(hMenu, MF_STRING, 2004, modeText.c_str());
+        
+        // 快捷功能
+        AppendMenu(hMenu, MF_STRING, 2005, L"📝 標點符號選單");
+        AppendMenu(hMenu, MF_STRING, 2006, L"🔄 重新載入配置");
+        
+        AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+        
+        // 位置控制
+        AppendMenu(hMenu, MF_STRING, 2002, L"📍 重置為滑鼠跟隨");
+        if (g_useUserPosition) {
+            AppendMenu(hMenu, MF_STRING, 2007, L"🎯 取消固定位置");
+        }
+        
+        AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+        
+        // 系統功能
+        AppendMenu(hMenu, MF_STRING, 2008, L"ℹ️ 關於");
+		// 重啟功能
+        AppendMenu(hMenu, MF_STRING, 2009, L"🔄 重啟輸入法");
+        AppendMenu(hMenu, MF_STRING, 2003, L"❌ 關閉輸入法");
+        
+        POINT pt;
+        GetCursorPos(&pt);
+        SetForegroundWindow(hwnd);
+        TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+        DestroyMenu(hMenu);
+    }
+    return 0;
+            
+        case WM_COMMAND:
+            switch (LOWORD(wp)) {
+                case 1001: show_punct_menu(); break;
+                case 1002: 
+                    load_dict();
+                    update_status(L"字典已重新載入");
+                    break;
+                case 1005:
+                    load_dict();
+                    load_punctuator();
+                    load_userdict();
+                    load_punct_menu();
+                    update_status(L"所有配置已重新載入");
+                    break;
+                case 1003:
+					show_about_dialog(hwnd);
+						break;
+
+                case 2001: show_from_tray(); break;
+				case 2002:
+					g_useUserPosition = false;
+					save_positions();
+					update_status(L"已重置為滑鼠跟隨模式");
+				break;
+				case 2003: PostMessage(hwnd, WM_CLOSE, 0, 0); break;
+        
+				case 2004:  // 模式切換
+					toggle_input_mode();
+				break;
+				case 2005:  // 標點符號選單
+					show_punct_menu();
+				break;
+				case 2006:  // 重新載入配置
+					reload_all_configurations();
+					MessageBoxW(hwnd, L"配置已重新載入！", L"提示", MB_OK | MB_ICONINFORMATION);
+				break;
+				case 2007:  // 取消固定位置
+					g_useUserPosition = false;
+					save_positions();
+					update_status(L"已取消固定位置");
+				break;
+				case 2009:  // 重啟輸入法
+					if (MessageBoxW(hwnd, L"確定要重啟輸入法嗎？\n\n重啟後將保留所有設定和學習記錄。", 
+                    L"確認重啟", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+					restart_ime();
+			}
+				break;
+				
+				case 2008:  // 關於
+				show_about_dialog(hwnd);
+				break;
+            }
+            return 0;
+            
+        case WM_USER+100: {
+            DWORD key = (DWORD)wp;
+            
+            if (g_chineseMode && (key == 'U' || key == 'I' || key == 'O' || key == 'J' || key == 'K' || key == 'L' || key == 'P' ||
+                                  key == VK_NUMPAD7 || key == VK_NUMPAD8 || key == VK_NUMPAD9 || 
+                                  key == VK_NUMPAD4 || key == VK_NUMPAD5 || key == VK_NUMPAD0)) { 
+                process_stroke(key); 
+                return 0; 
+            }
+            
+            if (key == VK_OEM_COMMA || key == VK_OEM_PERIOD || key == VK_OEM_2 || 
+                key == VK_OEM_1 || key == VK_OEM_4 || key == VK_OEM_6 || key == VK_OEM_7 ||
+                key == VK_OEM_MINUS || key == VK_OEM_PLUS || key == VK_OEM_5 || key == VK_OEM_3 ||
+                key == VK_SPACE || 
+                (key == '1' && (GetKeyState(VK_SHIFT) & 0x8000)) || 
+                (key == '2' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
+                (key == '3' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
+                (key == '4' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
+                (key == '5' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
+                (key == '6' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
+                (key == '7' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
+                (key == '8' && (GetKeyState(VK_SHIFT) & 0x8000)) ||
+                (key == '9' && (GetKeyState(VK_SHIFT) & 0x8000)) || 
+                (key == '0' && (GetKeyState(VK_SHIFT) & 0x8000))) { 
+                process_punctuator(key); 
+                return 0; 
+            }
+            
+            if (key == VK_DOWN) { change_page(1); return 0; }
+            if (key == VK_UP) { change_page(-1); return 0; }
+            if (key >= '1' && key <= '9') { select_candidate(key - '1'); return 0; }
+            
+            if (key >= VK_NUMPAD1 && key <= VK_NUMPAD9) { 
+                select_candidate(key - VK_NUMPAD1); 
+                return 0; 
+            }
+            
+            if (key == VK_BACK) { 
+                if (!g_input.empty()) { 
+                    g_input.pop_back(); 
+                    update_candidates_enhanced(); 
+                    InvalidateRect(hwnd, nullptr, TRUE); 
+                } 
+                return 0; 
+            }
+            if (key == VK_SPACE) { select_candidate(0); return 0; }
+            if (key == VK_ESCAPE) { 
+                g_input.clear(); 
+                g_candidates.clear(); 
+                g_candidateCodes.clear(); 
+                g_showCand = false; 
+                g_isInputting = false; 
+                g_inputError = false; 
+                g_showPunctMenu = false; 
+                if (g_hCandWnd) ShowWindow(g_hCandWnd, SW_HIDE);
+                if (g_hInputWnd) ShowWindow(g_hInputWnd, SW_HIDE);
+                update_status(L"已清除輸入"); 
+                InvalidateRect(hwnd, nullptr, TRUE); 
+                return 0; 
+            }
+            
+            break; 
+        }
+        
+        case WM_PAINT: { 
+            PAINTSTRUCT ps; 
+            HDC hdc = BeginPaint(hwnd, &ps); 
+            RECT rc;
+            GetClientRect(hwnd, &rc);
+            draw_toolbar(hdc, rc); 
+            EndPaint(hwnd, &ps); 
             return 0; 
-        } 
-        break; 
+        }
+        
+                case WM_LBUTTONDOWN: {
+            int x = LOWORD(lp); 
+            int y = HIWORD(lp);
+            
+            if (is_point_in_rect(x, y, g_closeButtonRect)) { 
+                if (MessageBoxW(hwnd, L"確定要關閉筆劃輸入法嗎？", L"確認關閉", MB_YESNO | MB_ICONQUESTION) == IDYES) { 
+                    PostMessage(hwnd, WM_CLOSE, 0, 0); 
+                } 
+                return 0; 
+            }
+            if (is_point_in_rect(x, y, g_modeIndicatorRect)) { 
+                toggle_input_mode(); 
+                return 0; 
+            }
+            if (is_point_in_rect(x, y, g_menuButtonRect)) { 
+                show_context_menu(hwnd);
+                return 0; 
+            }
+            if (is_point_in_rect(x, y, g_restoreButtonRect)) {
+                g_useUserPosition = false;
+                save_positions();
+                update_status(L"已恢復滑鼠跟隨模式");
+                return 0;
+            }
+            if (is_point_in_rect(x, y, g_minimizeButtonRect)) { 
+                hide_to_tray(); 
+                return 0; 
+            }
+            
+            // 工具列拖動
+            g_isToolbarDragging = true;
+            SetCapture(hwnd);
+            return 0;
+        }
+
+        
+        case WM_MOUSEMOVE: {
+            if (g_isToolbarDragging) {
+                POINT pt;
+                GetCursorPos(&pt);
+                SetWindowPos(hwnd, NULL, pt.x - 150, pt.y - 15, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+                return 0;
+            }
+            else {
+                int x = LOWORD(lp); 
+                int y = HIWORD(lp);
+                bool needRedraw = false;
+                
+                bool newModeHover = is_point_in_rect(x, y, g_modeIndicatorRect);
+                bool newMenuHover = is_point_in_rect(x, y, g_menuButtonRect);
+                bool newRestoreHover = is_point_in_rect(x, y, g_restoreButtonRect);
+                bool newMinimizeHover = is_point_in_rect(x, y, g_minimizeButtonRect);
+                bool newCloseHover = is_point_in_rect(x, y, g_closeButtonRect);
+                
+                if (newModeHover != g_modeIndicatorHover || newMenuHover != g_menuButtonHover ||
+                    newRestoreHover != g_restoreButtonHover || newMinimizeHover != g_minimizeButtonHover || 
+                    newCloseHover != g_closeButtonHover) {
+                    needRedraw = true;
+                }
+                
+                g_modeIndicatorHover = newModeHover;
+                g_menuButtonHover = newMenuHover;
+                g_restoreButtonHover = newRestoreHover;
+                g_minimizeButtonHover = newMinimizeHover;
+                g_closeButtonHover = newCloseHover;
+                
+                if (needRedraw) {
+                    InvalidateRect(hwnd, nullptr, TRUE);
+                }
+            }
+            break;
+        }
+
+        case WM_LBUTTONUP: { 
+            if (g_isToolbarDragging) { 
+                g_isToolbarDragging = false; 
+                ReleaseCapture(); 
+                
+                RECT rect;
+                GetWindowRect(hwnd, &rect);
+                g_toolbarPos.x = rect.left;
+                g_toolbarPos.y = rect.top;
+                save_positions();
+                return 0; 
+            } 
+            break; 
+        }
     }
-    
-    }  // switch 結束
-    
     return DefWindowProc(hwnd, msg, wp, lp);
 }
 
+LRESULT CALLBACK InputWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+        case WM_ERASEBKGND: return 1;
+        case WM_PAINT: { 
+            PAINTSTRUCT ps; 
+            HDC hdc = BeginPaint(hwnd, &ps); 
+            RECT rc;
+            GetClientRect(hwnd, &rc);
+            draw_input(hdc, rc); 
+            EndPaint(hwnd, &ps); 
+            return 0; 
+        }
+        case WM_LBUTTONDOWN: {
+            g_isToolbarDragging = true;
+            SetCapture(hwnd);
+            return 0;
+        }
+        case WM_MOUSEMOVE: {
+            if (g_isToolbarDragging) {
+                POINT pt;
+                GetCursorPos(&pt);
+                
+                // 計算統一寬度和高度
+                int unifiedWidth = calculate_optimal_window_width();
+                int candHeight = calculate_candidate_window_height();
+                
+                // 同步移動兩個視窗，嚴格保持相對位置
+                SetWindowPos(hwnd, NULL, pt.x - 50, pt.y - 10, 
+                             unifiedWidth, INPUT_WINDOW_HEIGHT, SWP_NOZORDER);
+                
+                if (g_hCandWnd && g_showCand) {
+                    SetWindowPos(g_hCandWnd, NULL, pt.x - 50, pt.y - 10 + INPUT_WINDOW_HEIGHT + WINDOW_SPACING,
+                                 unifiedWidth, candHeight, SWP_NOZORDER);
+                }
+                return 0;
+            }
+            break;
+        }
+        case WM_LBUTTONUP: {
+            if (g_isToolbarDragging) {
+                g_isToolbarDragging = false;
+                ReleaseCapture();
+                
+                // 記錄用戶自定義位置
+                RECT inputRect, candRect;
+                GetWindowRect(hwnd, &inputRect);
+                g_userInputPos.x = inputRect.left;
+                g_userInputPos.y = inputRect.top;
+                g_userInputPos.isValid = true;
+                
+                if (g_hCandWnd && GetWindowRect(g_hCandWnd, &candRect)) {
+                    g_userCandPos.x = candRect.left;
+                    g_userCandPos.y = candRect.top;
+                    g_userCandPos.isValid = true;
+                }
+                
+                g_useUserPosition = true;
+                save_positions();
+                update_status(L"已切換到用戶位置模式");
+                return 0;
+            }
+            break;
+        }
+    }
+    return DefWindowProc(hwnd, msg, wp, lp);
+}
 
-// 修正：候選字視窗程序，實現自訂背景繪製
 LRESULT CALLBACK CandProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
-    case WM_ERASEBKGND: {
-        // 處理自訂背景繪製
-        HDC hdc = (HDC)wp;
-        RECT rc;
-        GetClientRect(hwnd, &rc);
-        
-        // 使用候選字專用背景色
-        HBRUSH hBg = CreateSolidBrush(g_candidateBackgroundColor);
-        FillRect(hdc, &rc, hBg);
-        DeleteObject(hBg);
-        
-        return 1;  // 返回1表示背景已處理
+        case WM_ERASEBKGND: return 1;
+        case WM_PAINT: { 
+            PAINTSTRUCT ps; 
+            HDC hdc = BeginPaint(hwnd, &ps); 
+            RECT rc;
+            GetClientRect(hwnd, &rc);
+            draw_candidates(hdc, rc); 
+            EndPaint(hwnd, &ps); 
+            return 0; 
+        }
+        case WM_LBUTTONDOWN: { 
+			int x = LOWORD(lp);
+			int y = HIWORD(lp); 
+			int lineHeight = g_candidateFontSize + 8;
+			int startY = 8;  // 移除調試模式判斷，直接使用8
+    
+			// 檢查是否點擊候選字
+			int idx = (y - startY) / lineHeight; 
+			if (idx >= 0 && idx < CANDIDATES_PER_PAGE && idx < (int)g_candidates.size()) { 
+				select_candidate(idx); 
+				return 0;
     }
-    case WM_PAINT: { 
-        PAINTSTRUCT ps; 
-        HDC hdc = BeginPaint(hwnd, &ps); 
-        draw_cand(hwnd, hdc); 
-        EndPaint(hwnd, &ps); 
-        return 0; 
-    }
-    case WM_LBUTTONDOWN: { 
-        int y = HIWORD(lp); 
-        int lineHeight = g_candidateFontSize + 6;
-        int idx = (y - 10) / lineHeight; 
-        if (idx >= 0 && idx < CANDIDATES_PER_PAGE) { 
-            select_candidate(idx); 
-        } 
-        return 0; 
-    }
+            
+            // 檢查分頁按鈕點擊
+            if (g_totalPages > 1) {
+                int buttonY = startY + CANDIDATES_PER_PAGE * lineHeight + 5;
+                if (y >= buttonY && y <= buttonY + PAGE_BUTTON_HEIGHT) {
+                    if (x >= 8 && x <= 35 && g_currentPage > 0) {
+                        change_page(-1);
+                        return 0;
+                    } else if (x >= 40 && x <= 67 && g_currentPage < g_totalPages - 1) {
+                        change_page(1);
+                        return 0;
+                    }
+                }
+            }
+            
+            // 開始拖拽
+            g_isToolbarDragging = true;
+            SetCapture(hwnd);
+            return 0;
+        }
+        case WM_MOUSEMOVE: {
+            if (g_isToolbarDragging) {
+                POINT pt;
+                GetCursorPos(&pt);
+                
+                // 計算統一寬度和高度
+                int unifiedWidth = calculate_optimal_window_width();
+                int candHeight = calculate_candidate_window_height();
+                
+                // 同步移動兩個視窗，嚴格保持相對位置
+                SetWindowPos(g_hInputWnd, NULL, pt.x - 50, pt.y - 30 - INPUT_WINDOW_HEIGHT,
+                             unifiedWidth, INPUT_WINDOW_HEIGHT, SWP_NOZORDER);
+                SetWindowPos(hwnd, NULL, pt.x - 50, pt.y - 30, 
+                             unifiedWidth, candHeight, SWP_NOZORDER);
+                return 0;
+            }
+            break;
+        }
+        case WM_LBUTTONUP: {
+            if (g_isToolbarDragging) {
+                g_isToolbarDragging = false;
+                ReleaseCapture();
+                
+                // 記錄用戶自定義位置
+                RECT inputRect, candRect;
+                GetWindowRect(g_hInputWnd, &inputRect);
+                GetWindowRect(hwnd, &candRect);
+                
+                g_userInputPos.x = inputRect.left;
+                g_userInputPos.y = inputRect.top;
+                g_userInputPos.isValid = true;
+                
+                g_userCandPos.x = candRect.left;
+                g_userCandPos.y = candRect.top;
+                g_userCandPos.isValid = true;
+                
+                g_useUserPosition = true;
+                save_positions();
+                update_status(L"已切換到用戶位置模式");
+                return 0;
+            }
+            break;
+        }
     }
     return DefWindowProc(hwnd, msg, wp, lp);
 }
 
-int WINAPI WinMain(HINSTANCE hI, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+// ========== 主函數 ==========
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     try {
-        load_config();
-        load_dict("Zi-Ma-Biao.txt", g_dict);
+        // 載入所有配置和字典
+        load_positions();
+        load_dict();
         load_punctuator();
+        load_punct_menu();
         load_userdict();
+		load_interface_config(); 
+        update_monitor_info();
+		
+               // 註冊視窗類別
         WNDCLASSW wc = {0};
-        wc.lpfnWndProc = WndProc; wc.hInstance = hI; wc.lpszClassName = L"IME_MAIN"; 
-        wc.hbrBackground = CreateSolidBrush(g_bgColor); 
+        wc.lpfnWndProc = WndProc;
+        wc.hInstance = hInstance;
+        wc.lpszClassName = L"OptimizedStrokeIME";
+        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
         wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        if (!RegisterClassW(&wc)) { MessageBoxW(NULL, L"無法註冊主視窗類別", L"錯誤", MB_OK | MB_ICONERROR); return 1; }
-        g_hWnd = CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW, L"IME_MAIN", L"中文筆劃輸入法", WS_POPUP|WS_BORDER, 100, 100, g_windowWidth, g_windowHeight, NULL, NULL, hI, NULL);
-        if (!g_hWnd) { MessageBoxW(NULL, L"無法創建主視窗", L"錯誤", MB_OK | MB_ICONERROR); return 1; }
+        if (!RegisterClassW(&wc)) { 
+            MessageBoxW(NULL, L"無法註冊主視窗類別", L"錯誤", MB_OK | MB_ICONERROR); 
+            return 1; 
+        }
         
-        // 修正：候選字視窗類別註冊，設定 hbrBackground 為 NULL 以啟用自訂背景
-        WNDCLASSW wc2 = {0};
-        wc2.lpfnWndProc = CandProc; wc2.hInstance = hI; wc2.lpszClassName = L"IME_CAND"; 
-        wc2.hbrBackground = NULL;  // 關鍵修正：設為 NULL 啟用 WM_ERASEBKGND
-        wc2.hCursor = LoadCursor(NULL, IDC_ARROW);
-        if (!RegisterClassW(&wc2)) { MessageBoxW(NULL, L"無法註冊候選視窗類別", L"錯誤", MB_OK | MB_ICONERROR); return 1; }
-        g_hCandWnd = CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW, L"IME_CAND", L"", WS_POPUP|WS_BORDER, 100, 180, g_candidateWidth, g_candidateHeight, NULL, NULL, hI, NULL);
-        if (!g_hCandWnd) { MessageBoxW(NULL, L"無法創建候選視窗", L"錯誤", MB_OK | MB_ICONERROR); return 1; }
-        g_hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardHookProc, hI, 0);
-        if (!g_hKeyboardHook) { MessageBoxW(NULL, L"無法安裝鍵盤鉤子，可能需要管理員權限", L"警告", MB_OK | MB_ICONWARNING); }
-        ShowWindow(g_hWnd, SW_SHOW); 
+        // 註冊輸入視窗類別
+        wc.lpfnWndProc = InputWndProc;
+        wc.lpszClassName = L"OptimizedInput";
+        if (!RegisterClassW(&wc)) {
+            MessageBoxW(NULL, L"無法註冊輸入視窗類別", L"錯誤", MB_OK | MB_ICONERROR);
+            return 1;
+        }
+        
+        // 註冊候選字視窗類別
+        wc.lpfnWndProc = CandProc;
+        wc.lpszClassName = L"OptimizedCand";
+        if (!RegisterClassW(&wc)) {
+            MessageBoxW(NULL, L"無法註冊候選字視窗類別", L"錯誤", MB_OK | MB_ICONERROR);
+            return 1;
+        }
+		
+        if (!g_toolbarPos.isValid) {
+            RECT safeScreen = get_safe_primary_screen();
+            g_toolbarPos.x = safeScreen.left + 50;
+            g_toolbarPos.y = safeScreen.bottom - TOOLBAR_HEIGHT - 80;
+            g_toolbarPos.isValid = true;
+            save_positions();
+        }
+		
+
+// 確保工具列位置在可見範圍內
+RECT currentScreen = get_safe_primary_screen();
+g_toolbarPos.x = (int)max((LONG)currentScreen.left, min((LONG)g_toolbarPos.x, currentScreen.right - TOOLBAR_WIDTH));
+g_toolbarPos.y = (int)max((LONG)currentScreen.top, min((LONG)g_toolbarPos.y, currentScreen.bottom - TOOLBAR_HEIGHT));
+       
+		
+        // 建立主工具列視窗
+        g_hWnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, L"OptimizedStrokeIME", 
+            L"筆劃輸入法", WS_POPUP | WS_BORDER, 
+            g_toolbarPos.x, g_toolbarPos.y, TOOLBAR_WIDTH, TOOLBAR_HEIGHT, 
+            NULL, NULL, hInstance, NULL);
+        if (!g_hWnd) { 
+            MessageBoxW(NULL, L"無法建立主工具列視窗", L"錯誤", MB_OK | MB_ICONERROR); 
+            return 1; 
+        }
+        
+        // 建立字碼輸入視窗
+        g_hInputWnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, L"OptimizedInput", L"", 
+            WS_POPUP | WS_BORDER, 100, 100, MIN_INPUT_WIDTH, INPUT_WINDOW_HEIGHT, 
+            NULL, NULL, hInstance, NULL);
+        if (!g_hInputWnd) { 
+            MessageBoxW(NULL, L"無法建立字碼輸入視窗", L"錯誤", MB_OK | MB_ICONERROR); 
+            return 1; 
+        }
+        
+        // 建立候選字視窗
+        g_hCandWnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, L"OptimizedCand", L"", 
+            WS_POPUP | WS_BORDER, 100, 130, MIN_CAND_WIDTH, 200, 
+            NULL, NULL, hInstance, NULL);
+        if (!g_hCandWnd) { 
+            MessageBoxW(NULL, L"無法建立候選字視窗", L"錯誤", MB_OK | MB_ICONERROR); 
+            return 1; 
+        }
+        
+        // 安裝鍵盤鉤子
+        g_hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardHookProc, hInstance, 0);
+        if (!g_hKeyboardHook) { 
+            MessageBoxW(NULL, L"無法安裝鍵盤鉤子\n\n可能原因：\n• 缺少管理員權限\n• 防毒軟體阻擋\n• 系統安全設定限制\n\n輸入法仍可使用，但可能影響全域按鍵擷取功能。", 
+                       L"警告", MB_OK | MB_ICONWARNING); 
+        }
+        
+        // 建立系統托盤圖示
+        create_tray_icon();
+        
+        // 顯示主工具列視窗
+        ShowWindow(g_hWnd, SW_SHOW);
         UpdateWindow(g_hWnd);
-        update_status(L"中文筆劃輸入法已啟動");
+        
+        // 初始隱藏輸入相關視窗
+        ShowWindow(g_hInputWnd, SW_HIDE);
+        ShowWindow(g_hCandWnd, SW_HIDE);
+        
+        // 設置初始狀態
+        update_status(g_chineseMode ? L"中文模式（全形標點）" : L"英文模式（半形標點）");
+        
+        
+        // 主訊息循環
         MSG msg;
         while (GetMessage(&msg, NULL, 0, 0)) {
-            TranslateMessage(&msg); 
+            TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-        if (g_hKeyboardHook) { UnhookWindowsHookEx(g_hKeyboardHook); }
+        
+        // 程式結束前的資源清理
+        if (g_hKeyboardHook) {
+            UnhookWindowsHookEx(g_hKeyboardHook);
+            g_hKeyboardHook = NULL;
+        }
+        
+        // 移除系統托盤圖示
+        remove_tray_icon();
+        
+        // 儲存用戶設定
+        save_userdict();
+        save_positions();
+        
+       
+        
         return (int)msg.wParam;
+        
+    } catch (const exception& e) {
+        // C++ 標準例外處理
+        string errorMsg = "程式發生異常：" + string(e.what());
+        errorMsg += "\n\n請檢查：";
+        errorMsg += "\n• 字典檔案是否存在";
+        errorMsg += "\n• 設定檔案是否可寫入";
+        errorMsg += "\n• 系統權限是否足夠";
+        
+        MessageBoxA(NULL, errorMsg.c_str(), "程式異常", MB_OK | MB_ICONERROR);
+        
+        // 嘗試清理資源
+        if (g_hKeyboardHook) {
+            UnhookWindowsHookEx(g_hKeyboardHook);
+        }
+        remove_tray_icon();
+        
+        return 1;
     } catch (...) {
-        MessageBoxW(NULL, L"程式發生未預期的錯誤", L"錯誤", MB_OK | MB_ICONERROR);
+        // 捕獲所有其他異常
+        MessageBoxW(NULL, 
+            L"程式發生未知異常！\n\n"
+            L"可能原因：\n"
+            L"• 系統記憶體不足\n"
+            L"• 檔案存取權限問題\n"
+            L"• 相容性問題\n"
+            L"• 系統API呼叫失敗\n\n"
+            L"建議解決方案：\n"
+            L"• 以管理員身分執行\n"
+            L"• 檢查防毒軟體設定\n"
+            L"• 確認Windows版本相容性\n"
+            L"• 重新啟動系統後再試", 
+            L"嚴重錯誤", MB_OK | MB_ICONERROR);
+        
+        // 嘗試清理資源
+        if (g_hKeyboardHook) {
+            UnhookWindowsHookEx(g_hKeyboardHook);
+        }
+        remove_tray_icon();
+        
         return 1;
     }
 }
+
