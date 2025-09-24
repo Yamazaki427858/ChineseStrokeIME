@@ -1,0 +1,345 @@
+// buffer_manager.cpp - 暫放管理實作
+#include "buffer_manager.h"
+#include "input_handler.h"
+#include "window_manager.h"
+#include <fstream>
+#include <ctime>
+#include <iomanip>
+
+namespace BufferManager {
+
+int calculateBufferWindowHeight(const GlobalState& state) {
+    // 确保最小高度足够容纳控制列和按钮
+    int minRequiredHeight = 60 + CONTROL_BAR_HEIGHT; // 60px文字区域 + 控制列
+    
+    if (state.bufferText.empty()) {
+        return std::max(MIN_HEIGHT, minRequiredHeight);
+    }
+    
+    int lineCount = (state.bufferText.length() + CHARS_PER_LINE - 1) / CHARS_PER_LINE;
+    lineCount = std::max(1, lineCount);
+    
+    int contentHeight = lineCount * LINE_HEIGHT + 30; // 从20增加到30
+    int totalHeight = contentHeight + CONTROL_BAR_HEIGHT;
+    
+    // 强制确保最小高度
+    totalHeight = std::max(totalHeight, minRequiredHeight);
+    
+    return std::min(totalHeight, MAX_HEIGHT);
+}
+
+void saveBufferToFile(const GlobalState& state) {
+    try {
+        std::ofstream file("text_buffer.txt", std::ios::out | std::ios::binary);
+        if (file.is_open()) {
+            const char bom[] = {static_cast<char>(0xEF), 
+                               static_cast<char>(0xBB), 
+                               static_cast<char>(0xBF)};
+            file.write(bom, 3);
+            
+            std::string utf8_text = Utils::wstrToUtf8(state.bufferText);
+            file.write(utf8_text.c_str(), utf8_text.length());
+            file.close();
+        }
+    } catch (...) {}
+}
+
+void loadBufferFromFile(GlobalState& state) {
+    try {
+        std::ifstream file("text_buffer.txt", std::ios::binary);
+        if (file.is_open()) {
+            std::string content((std::istreambuf_iterator<char>(file)),
+                              std::istreambuf_iterator<char>());
+            file.close();
+            
+            if (content.length() >= 3 && 
+                content[0] == static_cast<char>(0xEF) &&
+                content[1] == static_cast<char>(0xBB) &&
+                content[2] == static_cast<char>(0xBF)) {
+                content = content.substr(3);
+            }
+            
+            state.bufferText = Utils::utf8ToWstr(content);
+            state.bufferCursorPos = state.bufferText.length();
+        }
+    } catch (...) {}
+}
+
+void saveBufferToTimestampedFile(const GlobalState& state) {
+    try {
+        time_t now = time(nullptr);
+        struct tm* timeinfo = localtime(&now);
+        
+        wchar_t filename[256];
+        swprintf_s(filename, 256, L"stroke_%04d%02d%02d_%02d%02d%02d.txt",
+                   timeinfo->tm_year + 1900,
+                   timeinfo->tm_mon + 1,
+                   timeinfo->tm_mday,
+                   timeinfo->tm_hour,
+                   timeinfo->tm_min,
+                   timeinfo->tm_sec);
+        
+        std::string filenameStr = Utils::wstrToUtf8(std::wstring(filename));
+        std::ofstream file(filenameStr, std::ios::out | std::ios::binary);
+        if (file.is_open()) {
+            const char bom[] = {static_cast<char>(0xEF), 
+                               static_cast<char>(0xBB), 
+                               static_cast<char>(0xBF)};
+            file.write(bom, 3);
+            
+            std::string content = Utils::wstrToUtf8(state.bufferText);
+            file.write(content.c_str(), content.length());
+            file.close();
+            
+            std::wstring successMsg = L"已儲存到檔案: " + std::wstring(filename);
+            Utils::updateStatus(const_cast<GlobalState&>(state), successMsg);
+        }
+    } catch (...) {
+        Utils::updateStatus(const_cast<GlobalState&>(state), L"儲存失敗：無法建立檔案");
+    }
+}
+
+void sendBufferContent(GlobalState& state) {
+    if (!state.bufferText.empty()) {
+        bool wasBufferVisible = state.bufferMode && IsWindowVisible(state.hBufferWnd);
+        RECT bufferRect;
+        if (wasBufferVisible) {
+            GetWindowRect(state.hBufferWnd, &bufferRect);
+        }
+        
+        // 發送文字
+        InputHandler::sendTextDirectUnicode(state.bufferText);
+        Utils::updateStatus(state, L"已發送暫放文字：" + std::to_wstring(state.bufferText.length()) + L"字");
+        
+        // 清空暫放區
+        state.bufferText.clear();
+        state.bufferCursorPos = 0;
+        saveBufferToFile(state);
+        
+        // 更新暫放視窗
+        if (state.hBufferWnd) {
+            int newHeight = calculateBufferWindowHeight(state);
+            if (state.useOptimizedUI) {
+                // OptimizedUI模式下更新位置
+                WindowManager::updateBufferWindowPosition(state);
+            } else {
+                SetWindowPos(state.hBufferWnd, NULL, 0, 0, FIXED_WIDTH, newHeight, 
+                            SWP_NOMOVE | SWP_NOZORDER);
+            }
+            
+            if (wasBufferVisible && state.bufferMode) {
+                ShowWindow(state.hBufferWnd, SW_SHOWNOACTIVATE);
+                state.bufferHasFocus = true;
+                SetTimer(state.hBufferWnd, 1, 500, NULL);
+            }
+            
+            InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+        }
+    } else {
+        Utils::updateStatus(state, L"暫放區為空，無內容可發送");
+    }
+}
+
+
+void clearBufferWithConfirm(GlobalState& state) {
+    if (!state.bufferText.empty()) {
+        if (state.bufferMode) {
+            state.bufferText.clear();
+            state.bufferCursorPos = 0;
+            saveBufferToFile(state);
+            Utils::updateStatus(state, L"暫放文字已清空");
+            
+            if (state.hBufferWnd) {
+                SetWindowPos(state.hBufferWnd, NULL, 0, 0, FIXED_WIDTH, MIN_HEIGHT, 
+                            SWP_NOMOVE | SWP_NOZORDER);
+                InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+            }
+        } else {
+            int result = MessageBoxW(state.hWnd, 
+                L"確定要清空暫放文字嗎？\n清空後將無法恢復。", 
+                L"確認清空", 
+                MB_YESNO | MB_ICONQUESTION);
+            
+            if (result == IDYES) {
+                state.bufferText.clear();
+                state.bufferCursorPos = 0;
+                saveBufferToFile(state);
+                Utils::updateStatus(state, L"暫放文字已清空");
+                
+                if (state.hBufferWnd) {
+                    SetWindowPos(state.hBufferWnd, NULL, 0, 0, FIXED_WIDTH, MIN_HEIGHT, 
+                                SWP_NOMOVE | SWP_NOZORDER);
+                    InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+                }
+            }
+        }
+    }
+}
+
+void toggleBufferMode(GlobalState& state) {
+    state.bufferMode = !state.bufferMode;
+    
+    if (state.bufferMode) {
+        loadBufferFromFile(state);
+        state.bufferHasFocus = true;
+        
+        if (state.hBufferWnd) {
+            // 確保暫放視窗始終顯示在工具列下方
+            WindowManager::updateBufferWindowPosition(state);
+            
+            // 設定計時器用於游標閃爍
+            SetTimer(state.hBufferWnd, 1, 500, NULL);
+        }
+        
+        Utils::updateStatus(state, L"已進入暫放模式（支持中英文直接編輯）");
+    } else {
+        state.bufferHasFocus = false;
+        if (state.hBufferWnd) {
+            KillTimer(state.hBufferWnd, 1);
+            ShowWindow(state.hBufferWnd, SW_HIDE);
+        }
+        
+        Utils::updateStatus(state, L"已退出暫放模式");
+    }
+    
+    // 更新工具列按鈕狀態（OptimizedUI）
+    if (state.useOptimizedUI && state.hWnd) {
+        InvalidateRect(state.hWnd, nullptr, TRUE);
+    }
+}
+
+void insertTextAtCursor(GlobalState& state, const std::wstring& text) {
+    if (state.bufferCursorPos < 0) state.bufferCursorPos = 0;
+    if (state.bufferCursorPos > (int)state.bufferText.length()) 
+        state.bufferCursorPos = state.bufferText.length();
+    
+    state.bufferText.insert(state.bufferCursorPos, text);
+    state.bufferCursorPos += text.length();
+    
+    saveBufferToFile(state);
+    
+    if (state.hBufferWnd) {
+        int windowHeight = calculateBufferWindowHeight(state);
+        
+        // 新增：OptimizedUI模式下的特殊處理
+        if (state.useOptimizedUI) {
+            // 保持相對於工具列的位置，只調整高度
+            RECT currentBufferRect;
+            GetWindowRect(state.hBufferWnd, &currentBufferRect);
+            
+            SetWindowPos(state.hBufferWnd, NULL, 
+                        currentBufferRect.left, currentBufferRect.top, 
+                        FIXED_WIDTH, windowHeight, 
+                        SWP_NOZORDER);
+        } else {
+            SetWindowPos(state.hBufferWnd, NULL, 0, 0, FIXED_WIDTH, windowHeight, 
+                        SWP_NOMOVE | SWP_NOZORDER);
+        }
+        
+        InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+    }
+}
+
+void deleteCharAtCursor(GlobalState& state, bool forward) {
+    if (state.bufferText.empty()) return;
+    
+    if (forward) {
+        if (state.bufferCursorPos < (int)state.bufferText.length()) {
+            state.bufferText.erase(state.bufferCursorPos, 1);
+        }
+    } else {
+        if (state.bufferCursorPos > 0) {
+            state.bufferText.erase(state.bufferCursorPos - 1, 1);
+            state.bufferCursorPos--;
+        }
+    }
+    
+    saveBufferToFile(state);
+    
+    if (state.hBufferWnd) {
+        int windowHeight = calculateBufferWindowHeight(state);
+        
+        // 新增：OptimizedUI模式下的特殊處理
+        if (state.useOptimizedUI) {
+            RECT currentBufferRect;
+            GetWindowRect(state.hBufferWnd, &currentBufferRect);
+            
+            SetWindowPos(state.hBufferWnd, NULL, 
+                        currentBufferRect.left, currentBufferRect.top, 
+                        FIXED_WIDTH, windowHeight, 
+                        SWP_NOZORDER);
+        } else {
+            SetWindowPos(state.hBufferWnd, NULL, 0, 0, FIXED_WIDTH, windowHeight, 
+                        SWP_NOMOVE | SWP_NOZORDER);
+        }
+        
+        InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+    }
+}
+
+void moveCursor(GlobalState& state, int direction) {
+    int newPos = state.bufferCursorPos + direction;
+    if (newPos < 0) newPos = 0;
+    if (newPos > (int)state.bufferText.length()) newPos = state.bufferText.length();
+    
+    state.bufferCursorPos = newPos;
+    
+    if (state.hBufferWnd) {
+        InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+    }
+}
+
+void setCursorPosition(GlobalState& state, int x, int y) {
+    if (!state.hBufferWnd) return;
+    
+    HDC hdc = GetDC(state.hBufferWnd);
+    if (!hdc) return;
+    
+    HFONT hFont = CreateFontW(state.bufferFontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, state.bufferFontName.c_str());
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    
+    int clickX = x - 10;
+    int clickY = y - 10;
+    
+    if (clickX < 0) clickX = 0;
+    if (clickY < 0) clickY = 0;
+    
+    int bestPos = 0;
+    int minDistance = INT_MAX;
+    
+    int currentX = 0;
+    int currentY = 0;
+    
+    for (int i = 0; i <= (int)state.bufferText.length(); i++) {
+        int distance = abs(currentX - clickX) + abs(currentY - clickY) * 2;
+        if (distance < minDistance) {
+            minDistance = distance;
+            bestPos = i;
+        }
+        
+        if (i < (int)state.bufferText.length()) {
+            wchar_t ch = state.bufferText[i];
+            SIZE charSize;
+            GetTextExtentPoint32W(hdc, &ch, 1, &charSize);
+            
+            currentX += charSize.cx;
+            
+            if (currentX > (FIXED_WIDTH - 30)) {
+                currentX = charSize.cx;
+                currentY += state.bufferFontSize + 2;
+            }
+        }
+    }
+    
+    state.bufferCursorPos = bestPos;
+    
+    SelectObject(hdc, hOldFont);
+    DeleteObject(hFont);
+    ReleaseDC(state.hBufferWnd, hdc);
+    
+    InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+}
+
+} // namespace BufferManager
