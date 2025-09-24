@@ -1,4 +1,4 @@
-山崎大叔不懂編程，全由Claude AI代勞。所以不作定期更新，有需要可自行下載SourceCode進行開發。
+山崎大叔不懂編程，全由Claude AI代勞。所以不作定期更新（看心情），有需要可自行下載SourceCode進行開發。
 
 
 ### 目前最新版本： 中文筆劃輸入法 V2.0 ChineseStrokeIME_Ver2
