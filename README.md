@@ -3,6 +3,22 @@
 
 ### 目前最新版本： 中文筆劃輸入法 V2.0 ChineseStrokeIME_Ver2
 
+預設界面：
+
+![image](https://github.com/yamazaki0688/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver2/ChineseStrokeIME_Ver2_1.jpg)
+
+暫放模式：
+
+由於輸入法採用全域鍵盤鉤子技術攔截按鍵輸入，若電腦開啟了防毒軟體的「安全瀏覽」或「網銀防護」等功能，可能導致輸入法在瀏覽器中無法使用、打不出字或被直接屏蔽。
+遇到此情況時，可啟用「暫放模式」，讓文字先經由「暫放視窗」輸入，再發送到瀏覽器的文字欄位中。
+
+![image](https://github.com/yamazaki0688/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver2/ChineseStrokeIME_Ver2_2.jpg)
+
+
+
+
+
+
 
 ## 📖 項目簡介
 
@@ -212,7 +228,7 @@ refocus_delay=50
 - **狀態燈**：綠色=就緒，橙色=輸入中，紅色=錯誤，黃色=暫放模式
 - **選單按鈕**：「☰」提供功能選單
 - **暫放按鈕**：「⌘」切換暫放模式
-- **重置按鈕**：「⟲」恢復跟隨滑鼠模式
+- **恢復跟隨**：「⿻」恢復跟隨滑鼠模式
 - **最小化**：「－」最小化到系統托盤
 - **關閉按鈕**：「×」安全關閉程式
 
