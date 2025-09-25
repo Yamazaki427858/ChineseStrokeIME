@@ -3,6 +3,8 @@
 
 ### 目前最新版本： 中文筆劃輸入法 V2.0 ChineseStrokeIME_Ver2
 
+20250925：發現Ver2﻿的ESC鍵被過度攔截，目前已修復好了。
+
 預設界面：
 
 ![image](https://github.com/yamazaki0688/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver2/ChineseStrokeIME_Ver2_1.jpg)
