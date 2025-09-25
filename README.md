@@ -38,7 +38,7 @@
 
 ### 重要注意事項
 ⚠️ **防毒軟體相容性警告**
-
+詳情請看：https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver2/Virustotal%E6%AA%A2%E6%B8%AC%E5%A0%B1%E5%91%8A/Virustotal%E6%AA%A2%E6%B8%AC%E5%A0%B1%E5%91%8A.md
 本輸入法採用全域鍵盤鉤子技術來攔截按鍵輸入，此技術可能會被部分防毒軟體誤判為潛在威脅：
 
 - **常見誤報**：Avast、AVG、Windows Defender 等可能會標記為「鍵盤記錄器」
