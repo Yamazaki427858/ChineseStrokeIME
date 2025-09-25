@@ -1,3 +1,5 @@
+使用Virustotal被檢測為W64.AIDetectMalware和Trojan.SuspectCRC﻿的原因
+https://www.virustotal.com/gui/file/810d679c91934044e29b9945f6b54d88081412701556d0f6300c76b54421215d/
 ![image](https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver2/Virustotal%E6%AA%A2%E6%B8%AC%E5%A0%B1%E5%91%8A/%E8%A2%AB%E6%AA%A2%E6%B8%AC%E7%82%BAW64.AIDetectMalware%E5%92%8CTrojan.SuspectCRC%EF%BB%BF%E7%9A%84%E5%8E%9F%E5%9B%A01.jpg)
 ![image](https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver2/Virustotal%E6%AA%A2%E6%B8%AC%E5%A0%B1%E5%91%8A/%E8%A2%AB%E6%AA%A2%E6%B8%AC%E7%82%BAW64.AIDetectMalware%E5%92%8CTrojan.SuspectCRC%EF%BB%BF%E7%9A%84%E5%8E%9F%E5%9B%A02.jpg)
 ![image](https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver2/Virustotal%E6%AA%A2%E6%B8%AC%E5%A0%B1%E5%91%8A/%E8%A2%AB%E6%AA%A2%E6%B8%AC%E7%82%BAW64.AIDetectMalware%E5%92%8CTrojan.SuspectCRC%EF%BB%BF%E7%9A%84%E5%8E%9F%E5%9B%A03.jpg)
