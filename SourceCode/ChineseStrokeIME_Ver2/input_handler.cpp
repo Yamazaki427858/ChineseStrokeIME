@@ -264,22 +264,23 @@ LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
                 g_state.shiftUsedForCombo = true;
             }
 
-            // 修正問題2：ESC鍵處理優化
             if (key == VK_ESCAPE) {
-                // 優先處理候選字和標點選單
-                if (g_state.showCand || g_state.showPunctMenu) {
-                    PostMessage(g_state.hWnd, WM_USER+100, VK_ESCAPE, 0);
-                    return 1;
-                }
-                // 暫放模式下且有焦點時，允許ESC鍵通過
-                if (g_state.bufferMode && g_state.bufferHasFocus) {
-                    // 讓ESC鍵通過到目標應用程式
-                    return CallNextHookEx(g_hKeyboardHook, nCode, wParam, lParam);
-                }
-                // 其他情況攔截並處理
-                PostMessage(g_state.hWnd, WM_USER+100, VK_ESCAPE, 0);
-                return 1;
-            }
+    // 只有當輸入法真的需要處理ESC時才攔截
+    if (g_state.showCand || g_state.showPunctMenu || g_state.isInputting) {
+        // 有候選字、標點選單或正在輸入時，由輸入法處理
+        PostMessage(g_state.hWnd, WM_USER+100, VK_ESCAPE, 0);
+        return 1;
+    }
+    
+    // 暫放模式下有焦點時的特殊處理
+    if (g_state.bufferMode && g_state.bufferHasFocus) {
+        // 讓ESC鍵通過到目標應用程式
+        return CallNextHookEx(g_hKeyboardHook, nCode, wParam, lParam);
+    }
+    
+    // 其他情況：輸入法沒有在使用，讓ESC鍵通過給其他程式
+    return CallNextHookEx(g_hKeyboardHook, nCode, wParam, lParam);
+}
 
             // 數字鍵優先用於選字
             if (key >= '1' && key <= '9') {
