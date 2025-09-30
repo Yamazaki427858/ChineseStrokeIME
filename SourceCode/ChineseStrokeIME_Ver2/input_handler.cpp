@@ -232,13 +232,13 @@ LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
         KBDLLHOOKSTRUCT* pKeyboard = (KBDLLHOOKSTRUCT*)lParam;
         DWORD key = pKeyboard->vkCode;
         
-        // 立即放行更多剪貼簿和編輯快捷鍵
-        BOOL ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
-		if (ctrl && (key == 'C' || key == 'V' || key == 'X' || key == 'Z' || key == 'Y' || 
-					key == 'A' || key == 'S' || key == 'F' || key == 'H' || key == 'N' || 
-					key == 'O' || key == 'P' || key == 'R' || key == 'T' || key == 'W')) {
-			return CallNextHookEx(g_hKeyboardHook, nCode, wParam, lParam);
-		}
+        // 立即放行更多Ctrl+快捷鍵
+         BOOL ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        if (ctrl && (key == 'C' || key == 'V' || key == 'X' || key == 'Z' || key == 'Y' || 
+                    key == 'A' || key == 'S' || key == 'F' || key == 'H' || key == 'N' || 
+                    key == 'O' || key == 'P' || key == 'R' || key == 'T' || key == 'W')) {
+            return CallNextHookEx(g_hKeyboardHook, nCode, wParam, lParam);
+        }
 
         // Shift鍵狀態處理
         if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT) {

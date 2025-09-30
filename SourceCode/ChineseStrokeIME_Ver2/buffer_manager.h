@@ -42,6 +42,12 @@ namespace BufferManager {
     // 獲取選取的文字
     std::wstring getSelectedText(const GlobalState& state);
 	
+	// 歷史記錄管理
+    void saveSnapshot(GlobalState& state);
+    void undo(GlobalState& state);
+    void redo(GlobalState& state);
+    void clearHistory(GlobalState& state);
+	
 }
 
    

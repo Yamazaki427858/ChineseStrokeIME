@@ -1367,6 +1367,20 @@ case WM_KEYDOWN: {
     bool ctrlPressed = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
     
     switch (wp) {
+		case 'Z':
+            if (ctrlPressed) {
+                BufferManager::undo(g_state);
+                return 0;
+            }
+            break;
+            
+        case 'Y':
+            if (ctrlPressed) {
+                BufferManager::redo(g_state);
+                return 0;
+            }
+            break;
+            		
         case 'A':
             if (ctrlPressed) {
                 BufferManager::selectAll(g_state);

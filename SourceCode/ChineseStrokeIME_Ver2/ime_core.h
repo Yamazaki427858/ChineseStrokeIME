@@ -152,6 +152,16 @@ struct GlobalState {
     DWORD bufferCursorBlinkTime = 0;
     bool bufferHasFocus = false;
 	
+	
+	// 歷史記錄
+	struct TextSnapshot {
+    std::wstring text;
+    int cursorPos;
+};
+std::vector<TextSnapshot> undoHistory;
+std::vector<TextSnapshot> redoHistory;
+int maxHistorySize = 50;  // 最多保存50步歷史
+	
     // 視窗行為設定
     int topmostCheckInterval = 5000;  // 前置檢查間隔
     bool forceStayOnTop = true;       // 是否強制前置

@@ -198,6 +198,7 @@ void toggleBufferMode(GlobalState& state) {
             KillTimer(state.hBufferWnd, 1);
             ShowWindow(state.hBufferWnd, SW_HIDE);
         }
+		clearHistory(state);
         
         Utils::updateStatus(state, L"已退出暫放模式");
     }
@@ -209,6 +210,7 @@ void toggleBufferMode(GlobalState& state) {
 }
 
 void insertTextAtCursor(GlobalState& state, const std::wstring& text) {
+	saveSnapshot(state);
     if (state.bufferCursorPos < 0) state.bufferCursorPos = 0;
     if (state.bufferCursorPos > (int)state.bufferText.length()) 
         state.bufferCursorPos = state.bufferText.length();
@@ -242,6 +244,8 @@ void insertTextAtCursor(GlobalState& state, const std::wstring& text) {
 
 void deleteCharAtCursor(GlobalState& state, bool forward) {
     if (state.bufferText.empty()) return;
+	
+	saveSnapshot(state);
     
 	    //如果有選取文字，優先刪除選取的內容
     if (state.hasSelection) {
@@ -458,6 +462,7 @@ void cutSelection(GlobalState& state) {
 
 void deleteSelection(GlobalState& state) {
     if (!state.hasSelection) return;
+	saveSnapshot(state);
     
     int start = std::min(state.selectionStart, state.selectionEnd);
     int end = std::max(state.selectionStart, state.selectionEnd);
@@ -583,6 +588,113 @@ POINT getPointFromTextPosition(const GlobalState& state, int position) {
     ReleaseDC(state.hBufferWnd, hdc);
     
     return pt;
+}
+
+//歷史記錄管理函數
+
+void saveSnapshot(GlobalState& state) {
+    GlobalState::TextSnapshot snapshot;
+    snapshot.text = state.bufferText;
+    snapshot.cursorPos = state.bufferCursorPos;
+    
+    state.undoHistory.push_back(snapshot);
+    
+    // 限制歷史記錄大小
+    if (state.undoHistory.size() > (size_t)state.maxHistorySize) {
+        state.undoHistory.erase(state.undoHistory.begin());
+    }
+    
+    // 新操作會清空 redo 歷史
+    state.redoHistory.clear();
+}
+
+void undo(GlobalState& state) {
+    if (state.undoHistory.empty()) {
+        Utils::updateStatus(state, L"沒有可復原的操作");
+        return;
+    }
+    
+    // 保存當前狀態到 redo 歷史
+    GlobalState::TextSnapshot currentSnapshot;
+    currentSnapshot.text = state.bufferText;
+    currentSnapshot.cursorPos = state.bufferCursorPos;
+    state.redoHistory.push_back(currentSnapshot);
+    
+    // 恢復上一個狀態
+    GlobalState::TextSnapshot snapshot = state.undoHistory.back();
+    state.undoHistory.pop_back();
+    
+    state.bufferText = snapshot.text;
+    state.bufferCursorPos = snapshot.cursorPos;
+    
+    // 更新視窗
+    if (state.hBufferWnd) {
+        int windowHeight = calculateBufferWindowHeight(state);
+        
+        if (state.useOptimizedUI) {
+            RECT currentBufferRect;
+            GetWindowRect(state.hBufferWnd, &currentBufferRect);
+            SetWindowPos(state.hBufferWnd, NULL, 
+                        currentBufferRect.left, currentBufferRect.top, 
+                        FIXED_WIDTH, windowHeight, 
+                        SWP_NOZORDER);
+        } else {
+            SetWindowPos(state.hBufferWnd, NULL, 0, 0, FIXED_WIDTH, windowHeight, 
+                        SWP_NOMOVE | SWP_NOZORDER);
+        }
+        
+        InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+    }
+    
+    saveBufferToFile(state);
+    Utils::updateStatus(state, L"已復原");
+}
+
+void redo(GlobalState& state) {
+    if (state.redoHistory.empty()) {
+        Utils::updateStatus(state, L"沒有可重做的操作");
+        return;
+    }
+    
+    // 保存當前狀態到 undo 歷史
+    GlobalState::TextSnapshot currentSnapshot;
+    currentSnapshot.text = state.bufferText;
+    currentSnapshot.cursorPos = state.bufferCursorPos;
+    state.undoHistory.push_back(currentSnapshot);
+    
+    // 恢復下一個狀態
+    GlobalState::TextSnapshot snapshot = state.redoHistory.back();
+    state.redoHistory.pop_back();
+    
+    state.bufferText = snapshot.text;
+    state.bufferCursorPos = snapshot.cursorPos;
+    
+    // 更新視窗
+    if (state.hBufferWnd) {
+        int windowHeight = calculateBufferWindowHeight(state);
+        
+        if (state.useOptimizedUI) {
+            RECT currentBufferRect;
+            GetWindowRect(state.hBufferWnd, &currentBufferRect);
+            SetWindowPos(state.hBufferWnd, NULL, 
+                        currentBufferRect.left, currentBufferRect.top, 
+                        FIXED_WIDTH, windowHeight, 
+                        SWP_NOZORDER);
+        } else {
+            SetWindowPos(state.hBufferWnd, NULL, 0, 0, FIXED_WIDTH, windowHeight, 
+                        SWP_NOMOVE | SWP_NOZORDER);
+        }
+        
+        InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+    }
+    
+    saveBufferToFile(state);
+    Utils::updateStatus(state, L"已重做");
+}
+
+void clearHistory(GlobalState& state) {
+    state.undoHistory.clear();
+    state.redoHistory.clear();
 }
 
 } // namespace BufferManager
