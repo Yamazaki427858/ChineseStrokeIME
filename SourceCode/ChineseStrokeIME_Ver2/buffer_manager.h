@@ -23,6 +23,28 @@ namespace BufferManager {
     void deleteCharAtCursor(GlobalState& state, bool forward = false);
     void moveCursor(GlobalState& state, int direction);
     void setCursorPosition(GlobalState& state, int x, int y);
+	 // 新增：文字選取功能
+    void startSelection(GlobalState& state, int x, int y);
+    void updateSelection(GlobalState& state, int x, int y);
+    void endSelection(GlobalState& state);
+    void clearSelection(GlobalState& state);
+    
+    // 選取操作
+    void selectAll(GlobalState& state);
+    void copySelection(GlobalState& state);
+    void cutSelection(GlobalState& state);
+    void deleteSelection(GlobalState& state);
+    
+    // 座標轉換
+    int getTextPositionFromPoint(const GlobalState& state, int x, int y);
+    POINT getPointFromTextPosition(const GlobalState& state, int position);
+    
+    // 獲取選取的文字
+    std::wstring getSelectedText(const GlobalState& state);
+	
 }
+
+   
+
 
 #endif // BUFFER_MANAGER_H

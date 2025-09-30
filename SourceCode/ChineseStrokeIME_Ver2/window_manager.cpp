@@ -1032,6 +1032,65 @@ LRESULT CALLBACK CandProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProc(hwnd, msg, wp, lp);
 }
 
+// 新增函數：繪製帶選取高亮的文字
+void drawTextWithSelection(HDC hdc, RECT textArea, GlobalState& state) {
+    if (state.bufferText.empty()) return;
+    
+    // 設定字體
+    HFONT hFont = CreateFontW(state.bufferFontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, state.bufferFontName.c_str());
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    
+    SetBkMode(hdc, TRANSPARENT);
+    
+    int currentX = textArea.left;
+    int currentY = textArea.top;
+    int lineHeight = state.bufferFontSize + 2;
+    
+    int selStart = state.hasSelection ? std::min(state.selectionStart, state.selectionEnd) : -1;
+    int selEnd = state.hasSelection ? std::max(state.selectionStart, state.selectionEnd) : -1;
+    
+    for (int i = 0; i < (int)state.bufferText.length(); i++) {
+        wchar_t ch = state.bufferText[i];
+        SIZE charSize;
+        GetTextExtentPoint32W(hdc, &ch, 1, &charSize);
+        
+        // 檢查是否需要換行
+        if (currentX + charSize.cx > textArea.right) {
+            currentX = textArea.left;
+            currentY += lineHeight;
+            
+            // 檢查是否超出顯示區域
+            if (currentY + state.bufferFontSize > textArea.bottom) {
+                break; // 不再繪製
+            }
+        }
+        
+        // 繪製選取背景
+        if (state.hasSelection && i >= selStart && i < selEnd) {
+            RECT charRect = {currentX, currentY, currentX + charSize.cx, currentY + state.bufferFontSize};
+            HBRUSH hSelBrush = CreateSolidBrush(RGB(51, 153, 255)); // 藍色選取背景
+            FillRect(hdc, &charRect, hSelBrush);
+            DeleteObject(hSelBrush);
+            
+            // 選取文字使用白色
+            SetTextColor(hdc, RGB(255, 255, 255));
+        } else {
+            // 正常文字顏色
+            SetTextColor(hdc, state.bufferTextColor);
+        }
+        
+        // 繪製字符
+        TextOutW(hdc, currentX, currentY, &ch, 1);
+        
+        currentX += charSize.cx;
+    }
+    
+    SelectObject(hdc, hOldFont);
+    DeleteObject(hFont);
+}
+
 // 暫放視窗的繪製和處理
 void drawBufferWindow(HDC hdc, RECT rc, GlobalState& state) {
     HBRUSH hBg = CreateSolidBrush(state.bufferBackgroundColor);
@@ -1057,38 +1116,18 @@ void drawBufferWindow(HDC hdc, RECT rc, GlobalState& state) {
     SetBkMode(hdc, TRANSPARENT);
     
     if (!state.bufferText.empty()) {
-        DrawTextW(hdc, state.bufferText.c_str(), -1, &textArea, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_EDITCONTROL);
-    }
+		drawTextWithSelection(hdc, textArea, state);
+	}
     
-    if (state.bufferHasFocus && state.bufferShowCursor) {
-        std::wstring beforeCursor = state.bufferText.substr(0, state.bufferCursorPos);
-        SIZE textSize;
-        GetTextExtentPoint32W(hdc, beforeCursor.c_str(), beforeCursor.length(), &textSize);
-        
-        int lines = 0;
-        int currentLineWidth = 0;
-        int cursorX = 15;
-        int cursorY = 15;
-        for (int i = 0; i < state.bufferCursorPos; i++) {
-            wchar_t ch = state.bufferText[i];
-            SIZE charSize;
-            GetTextExtentPoint32W(hdc, &ch, 1, &charSize);
-            
-            if (currentLineWidth + charSize.cx > FIXED_WIDTH - 30) {
-                lines++;
-                currentLineWidth = charSize.cx;
-                cursorX = 15 + charSize.cx;
-            } else {
-                currentLineWidth += charSize.cx;
-                cursorX = 15 + currentLineWidth;
-            }
-        }
-        cursorY = 15 + lines * (state.bufferFontSize + 2);
+   // 繪製游標（只在沒有選取時顯示）
+	if (state.bufferHasFocus && state.bufferShowCursor && !state.hasSelection) {
+    // 使用新的座標轉換函數
+    POINT cursorPos = BufferManager::getPointFromTextPosition(state, state.bufferCursorPos); 
         
         HPEN hCursorPen = CreatePen(PS_SOLID, 1, state.bufferCursorColor);
         HPEN hOldCursorPen = (HPEN)SelectObject(hdc, hCursorPen);
-        MoveToEx(hdc, cursorX, cursorY, NULL);
-        LineTo(hdc, cursorX, cursorY + state.bufferFontSize);
+        MoveToEx(hdc, cursorPos.x, cursorPos.y, NULL);  // ✅ 正确
+         LineTo(hdc, cursorPos.x, cursorPos.y + state.bufferFontSize);  // ✅ 正确
         SelectObject(hdc, hOldCursorPen);
         DeleteObject(hCursorPen);
     }
@@ -1189,69 +1228,207 @@ void drawBufferWindow(HDC hdc, RECT rc, GlobalState& state) {
 
 LRESULT CALLBACK BufferProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
-        case WM_PAINT: {
+		 case WM_ERASEBKGND:
+            return 1;
+          case WM_PAINT: {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
             RECT rc;
             GetClientRect(hwnd, &rc);
-            drawBufferWindow(hdc, rc, g_state);
+            
+            // 双缓冲绘制
+            HDC memDC = CreateCompatibleDC(hdc);
+            HBITMAP memBitmap = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
+            HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
+            
+            drawBufferWindow(memDC, rc, g_state);
+            
+            BitBlt(hdc, 0, 0, rc.right, rc.bottom, memDC, 0, 0, SRCCOPY);
+            
+            SelectObject(memDC, oldBitmap);
+            DeleteObject(memBitmap);
+            DeleteDC(memDC);
+            
             EndPaint(hwnd, &ps);
             return 0;
         }
         
         case WM_LBUTTONDOWN: {
-            int x = LOWORD(lp); 
-            int y = HIWORD(lp);
-            
-            SetCapture(hwnd);
-            g_state.bufferHasFocus = true;
-            
-            SetTimer(hwnd, 1, 500, NULL);
-            g_state.bufferShowCursor = true;
-            
-            if (isPointInSendButton(x, y, g_state)) {
-                ReleaseCapture();
-                BufferManager::sendBufferContent(g_state);
-                return 0;
-            }
-            
-            if (isPointInClearButton(x, y, g_state)) {
-                ReleaseCapture();
-                BufferManager::clearBufferWithConfirm(g_state);
-                return 0;
-            }
-            
-            if (isPointInSaveButton(x, y, g_state)) {
-                ReleaseCapture();
-                BufferManager::saveBufferToTimestampedFile(g_state);
-                return 0;
-            }
-            
-            ReleaseCapture();
-            BufferManager::setCursorPosition(g_state, x, y);
-            return 0;
-        }
+    int x = LOWORD(lp); 
+    int y = HIWORD(lp);
+    
+    // 檢查按鈕點擊（優先處理）
+    if (isPointInSendButton(x, y, g_state)) {
+        BufferManager::sendBufferContent(g_state);
+        return 0;
+    }
+    
+    if (isPointInClearButton(x, y, g_state)) {
+        BufferManager::clearBufferWithConfirm(g_state);
+        return 0;
+    }
+    
+    if (isPointInSaveButton(x, y, g_state)) {
+        BufferManager::saveBufferToTimestampedFile(g_state);
+        return 0;
+    }
+    
+    // 清除之前的選取
+    BufferManager::clearSelection(g_state);
+    
+    // 開始新的選取或設定游標
+    SetCapture(hwnd);
+    g_state.bufferHasFocus = true;
+    SetTimer(hwnd, 1, 500, NULL);
+    g_state.bufferShowCursor = true;
+    
+    BufferManager::startSelection(g_state, x, y);
+    BufferManager::setCursorPosition(g_state, x, y);
+    return 0;
+}
         
         case WM_MOUSEMOVE: {
-            int x = LOWORD(lp); 
-            int y = HIWORD(lp);
-            
-            bool wasSendHover = g_state.sendButtonHover;
-            bool wasClearHover = g_state.clearButtonHover;
-            bool wasSaveHover = g_state.saveButtonHover;
-            
-            g_state.sendButtonHover = isPointInSendButton(x, y, g_state);
-            g_state.clearButtonHover = isPointInClearButton(x, y, g_state);
-            g_state.saveButtonHover = isPointInSaveButton(x, y, g_state);
-            
-            if (wasSendHover != g_state.sendButtonHover || 
-                wasClearHover != g_state.clearButtonHover || 
-                wasSaveHover != g_state.saveButtonHover) {
-                InvalidateRect(hwnd, nullptr, TRUE);
+    int x = LOWORD(lp); 
+    int y = HIWORD(lp);
+    
+    bool wasSendHover = g_state.sendButtonHover;
+    bool wasClearHover = g_state.clearButtonHover;
+    bool wasSaveHover = g_state.saveButtonHover;
+    
+    g_state.sendButtonHover = isPointInSendButton(x, y, g_state);
+    g_state.clearButtonHover = isPointInClearButton(x, y, g_state);
+    g_state.saveButtonHover = isPointInSaveButton(x, y, g_state);
+    
+    
+    if (g_state.isSelecting) {
+        BufferManager::updateSelection(g_state, x, y);
+    }
+    
+    
+    if (wasSendHover != g_state.sendButtonHover || 
+        wasClearHover != g_state.clearButtonHover || 
+        wasSaveHover != g_state.saveButtonHover) {
+        InvalidateRect(hwnd, nullptr, TRUE);
+    }
+    return 0;
+}
+
+case WM_LBUTTONUP: {
+    if (GetCapture() == hwnd) {
+        ReleaseCapture();
+        BufferManager::endSelection(g_state);
+    }
+    return 0;
+}
+
+case WM_RBUTTONDOWN: {
+    int x = LOWORD(lp);
+    int y = HIWORD(lp);
+    
+    // 創建右鍵選單
+    HMENU hMenu = CreatePopupMenu();
+    
+    if (g_state.hasSelection) {
+        AppendMenu(hMenu, MF_STRING, 1001, L"複製 (Ctrl+C)");
+        AppendMenu(hMenu, MF_STRING, 1002, L"剪下 (Ctrl+X)");
+        AppendMenu(hMenu, MF_STRING, 1003, L"刪除");
+        AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+    }
+    
+    AppendMenu(hMenu, MF_STRING, 1004, L"全選 (Ctrl+A)");
+    
+    if (!g_state.bufferText.empty()) {
+        AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+        AppendMenu(hMenu, MF_STRING, 1005, L"清空全部");
+    }
+    
+    POINT pt = {x, y};
+    ClientToScreen(hwnd, &pt);
+    
+    int cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
+                            pt.x, pt.y, 0, hwnd, NULL);
+    
+    DestroyMenu(hMenu);
+    
+    // 處理選單命令
+    switch (cmd) {
+        case 1001: BufferManager::copySelection(g_state); break;
+        case 1002: BufferManager::cutSelection(g_state); break;
+        case 1003: BufferManager::deleteSelection(g_state); break;
+        case 1004: BufferManager::selectAll(g_state); break;
+        case 1005: BufferManager::clearBufferWithConfirm(g_state); break;
+    }
+    
+    return 0;
+}
+    
+
+case WM_KEYDOWN: {
+    bool ctrlPressed = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+    
+    switch (wp) {
+        case 'A':
+            if (ctrlPressed) {
+                BufferManager::selectAll(g_state);
+                return 0;
             }
-            return 0;
-        }
-        
+            break;
+            
+        case 'C':
+            if (ctrlPressed && g_state.hasSelection) {
+                BufferManager::copySelection(g_state);
+                return 0;
+            }
+            break;
+            
+        case 'X':
+            if (ctrlPressed && g_state.hasSelection) {
+                BufferManager::cutSelection(g_state);
+                return 0;
+            }
+            break;
+            
+        case 'V':
+            if (ctrlPressed) {
+                // 如果有選取文字，先刪除
+                if (g_state.hasSelection) {
+                    BufferManager::deleteSelection(g_state);
+                }
+                
+                // 從剪貼簿貼上
+                if (OpenClipboard(hwnd)) {
+                    HANDLE hData = GetClipboardData(CF_UNICODETEXT);
+                    if (hData) {
+                        wchar_t* pszText = (wchar_t*)GlobalLock(hData);
+                        if (pszText) {
+                            std::wstring pastedText(pszText);
+                            BufferManager::insertTextAtCursor(g_state, pastedText);
+                            Utils::updateStatus(g_state, L"已貼上 " + std::to_wstring(pastedText.length()) + L" 個字符");
+                            GlobalUnlock(hData);
+                        }
+                    }
+                    CloseClipboard();
+                }
+                return 0;
+            }
+            break;
+            
+        case VK_DELETE:
+            if (g_state.hasSelection) {
+                BufferManager::deleteSelection(g_state);
+                return 0;
+            }
+            break;
+            
+        case VK_ESCAPE:
+            if (g_state.hasSelection) {
+                BufferManager::clearSelection(g_state);
+                return 0;
+            }
+            break;
+    }
+    break;
+}    
         case WM_TIMER: {
             if (wp == 1) {
                 g_state.bufferShowCursor = !g_state.bufferShowCursor;

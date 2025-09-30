@@ -5,7 +5,7 @@
 #include <fstream>
 #include <ctime>
 #include <iomanip>
-
+#include <windows.h>
 namespace BufferManager {
 
 int calculateBufferWindowHeight(const GlobalState& state) {
@@ -243,6 +243,12 @@ void insertTextAtCursor(GlobalState& state, const std::wstring& text) {
 void deleteCharAtCursor(GlobalState& state, bool forward) {
     if (state.bufferText.empty()) return;
     
+	    //如果有選取文字，優先刪除選取的內容
+    if (state.hasSelection) {
+        deleteSelection(state);
+        return;
+    }
+	
     if (forward) {
         if (state.bufferCursorPos < (int)state.bufferText.length()) {
             state.bufferText.erase(state.bufferCursorPos, 1);
@@ -340,6 +346,243 @@ void setCursorPosition(GlobalState& state, int x, int y) {
     ReleaseDC(state.hBufferWnd, hdc);
     
     InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+}
+void startSelection(GlobalState& state, int x, int y) {
+    int position = getTextPositionFromPoint(state, x, y);
+    if (position >= 0) {
+        state.isSelecting = true;
+        state.selectionStart = position;
+        state.selectionEnd = position;
+        state.hasSelection = false;
+        state.selectionStartPoint = {x, y};
+        state.selectionEndPoint = {x, y};
+        
+        if (state.hBufferWnd) {
+            InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+        }
+    }
+}
+
+void updateSelection(GlobalState& state, int x, int y) {
+    if (!state.isSelecting) return;
+    
+    int position = getTextPositionFromPoint(state, x, y);
+    if (position >= 0) {
+        state.selectionEnd = position;
+        state.selectionEndPoint = {x, y};
+        state.hasSelection = (state.selectionStart != state.selectionEnd);
+        
+        if (state.hBufferWnd) {
+            InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+        }
+    }
+}
+
+void endSelection(GlobalState& state) {
+    state.isSelecting = false;
+    
+    // 確保選取範圍正確
+    if (state.selectionStart > state.selectionEnd) {
+        std::swap(state.selectionStart, state.selectionEnd);
+    }
+    
+    state.hasSelection = (state.selectionStart != state.selectionEnd);
+    
+    if (state.hBufferWnd) {
+        InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+    }
+}
+
+void clearSelection(GlobalState& state) {
+    state.isSelecting = false;
+    state.hasSelection = false;
+    state.selectionStart = -1;
+    state.selectionEnd = -1;
+    
+    if (state.hBufferWnd) {
+        InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+    }
+}
+
+void selectAll(GlobalState& state) {
+    if (!state.bufferText.empty()) {
+        state.selectionStart = 0;
+        state.selectionEnd = state.bufferText.length();
+        state.hasSelection = true;
+        state.isSelecting = false;
+        
+        if (state.hBufferWnd) {
+            InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+        }
+        
+        Utils::updateStatus(state, L"已全選 " + std::to_wstring(state.bufferText.length()) + L" 個字符");
+    }
+}
+
+void copySelection(GlobalState& state) {
+    if (!state.hasSelection) return;
+    
+    std::wstring selectedText = getSelectedText(state);
+    if (selectedText.empty()) return;
+    
+    // 複制到系統剪貼簿
+    if (OpenClipboard(state.hBufferWnd)) {
+        EmptyClipboard();
+        
+        size_t size = (selectedText.length() + 1) * sizeof(wchar_t);
+        HGLOBAL hClipboardData = GlobalAlloc(GMEM_MOVEABLE, size);
+        
+        if (hClipboardData) {
+            wchar_t* pchData = (wchar_t*)GlobalLock(hClipboardData);
+            if (pchData) {
+                wcscpy_s(pchData, selectedText.length() + 1, selectedText.c_str());
+                GlobalUnlock(hClipboardData);
+                SetClipboardData(CF_UNICODETEXT, hClipboardData);
+            }
+        }
+        
+        CloseClipboard();
+        
+        Utils::updateStatus(state, L"已複制 " + std::to_wstring(selectedText.length()) + L" 個字符");
+    }
+}
+
+void cutSelection(GlobalState& state) {
+    if (!state.hasSelection) return;
+    
+    copySelection(state);  // 先複制
+    deleteSelection(state); // 再刪除
+    
+    Utils::updateStatus(state, L"已剪下選取的文字");
+}
+
+void deleteSelection(GlobalState& state) {
+    if (!state.hasSelection) return;
+    
+    int start = std::min(state.selectionStart, state.selectionEnd);
+    int end = std::max(state.selectionStart, state.selectionEnd);
+    
+    if (start >= 0 && end <= (int)state.bufferText.length()) {
+        state.bufferText.erase(start, end - start);
+        state.bufferCursorPos = start;
+        
+        clearSelection(state);
+        saveBufferToFile(state);
+        
+        if (state.hBufferWnd) {
+            int windowHeight = calculateBufferWindowHeight(state);
+            SetWindowPos(state.hBufferWnd, NULL, 0, 0, FIXED_WIDTH, windowHeight, 
+                        SWP_NOMOVE | SWP_NOZORDER);
+            InvalidateRect(state.hBufferWnd, nullptr, TRUE);
+        }
+    }
+}
+
+std::wstring getSelectedText(const GlobalState& state) {
+    if (!state.hasSelection || state.bufferText.empty()) return L"";
+    
+    int start = std::min(state.selectionStart, state.selectionEnd);
+    int end = std::max(state.selectionStart, state.selectionEnd);
+    
+    if (start >= 0 && end <= (int)state.bufferText.length() && start < end) {
+        return state.bufferText.substr(start, end - start);
+    }
+    
+    return L"";
+}
+
+int getTextPositionFromPoint(const GlobalState& state, int x, int y) {
+    if (!state.hBufferWnd || state.bufferText.empty()) return -1;
+    
+    HDC hdc = GetDC(state.hBufferWnd);
+    if (!hdc) return -1;
+    
+    HFONT hFont = CreateFontW(state.bufferFontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, state.bufferFontName.c_str());
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    
+    int clickX = x - 10;
+    int clickY = y - 10;
+    
+    if (clickX < 0) clickX = 0;
+    if (clickY < 0) clickY = 0;
+    
+    int bestPos = 0;
+    int minDistance = INT_MAX;
+    
+    int currentX = 0;
+    int currentY = 0;
+    int lineHeight = state.bufferFontSize + 2;
+    
+    for (int i = 0; i <= (int)state.bufferText.length(); i++) {
+        int distance = abs(currentX - clickX) + abs(currentY - clickY);
+        if (distance < minDistance) {
+            minDistance = distance;
+            bestPos = i;
+        }
+        
+        if (i < (int)state.bufferText.length()) {
+            wchar_t ch = state.bufferText[i];
+            SIZE charSize;
+            GetTextExtentPoint32W(hdc, &ch, 1, &charSize);
+            
+            currentX += charSize.cx;
+            
+            if (currentX > (FIXED_WIDTH - 30)) {
+                currentX = charSize.cx;
+                currentY += lineHeight;
+            }
+        }
+    }
+    
+    SelectObject(hdc, hOldFont);
+    DeleteObject(hFont);
+    ReleaseDC(state.hBufferWnd, hdc);
+    
+    return bestPos;
+}
+
+POINT getPointFromTextPosition(const GlobalState& state, int position) {
+    POINT pt = {10, 10};
+    
+    if (!state.hBufferWnd || position < 0 || position > (int)state.bufferText.length()) {
+        return pt;
+    }
+    
+    HDC hdc = GetDC(state.hBufferWnd);
+    if (!hdc) return pt;
+    
+    HFONT hFont = CreateFontW(state.bufferFontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, state.bufferFontName.c_str());
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    
+    int currentX = 10;
+    int currentY = 10;
+    int lineHeight = state.bufferFontSize + 2;
+    
+    for (int i = 0; i < position && i < (int)state.bufferText.length(); i++) {
+        wchar_t ch = state.bufferText[i];
+        SIZE charSize;
+        GetTextExtentPoint32W(hdc, &ch, 1, &charSize);
+        
+        currentX += charSize.cx;
+        
+        if (currentX > (FIXED_WIDTH - 30)) {
+            currentX = 10 + charSize.cx;
+            currentY += lineHeight;
+        }
+    }
+    
+    pt.x = currentX;
+    pt.y = currentY;
+    
+    SelectObject(hdc, hOldFont);
+    DeleteObject(hFont);
+    ReleaseDC(state.hBufferWnd, hdc);
+    
+    return pt;
 }
 
 } // namespace BufferManager

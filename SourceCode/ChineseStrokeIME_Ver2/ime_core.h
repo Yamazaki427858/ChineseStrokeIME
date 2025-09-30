@@ -121,6 +121,19 @@ struct GlobalState {
     bool isInputting = false;
     bool inputError = false;
     bool showPunctMenu = false;
+	
+	// 文字選取狀態
+    bool isSelecting = false;           // 是否正在選取
+    int selectionStart = -1;           // 選取起始位置
+    int selectionEnd = -1;             // 選取結束位置
+    bool hasSelection = false;         // 是否有選取的文字
+    POINT selectionStartPoint = {0};   // 選取起始座標
+    POINT selectionEndPoint = {0};     // 選取結束座標
+    
+    // 右鍵選單相關
+    bool showContextMenu = false;      // 是否顯示右鍵選單
+    RECT contextMenuRect = {0};        // 右鍵選單位置
+
     
     // 字典資料
     std::map<std::wstring, std::vector<std::wstring>> dict;

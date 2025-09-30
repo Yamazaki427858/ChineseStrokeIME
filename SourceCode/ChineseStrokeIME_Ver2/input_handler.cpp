@@ -72,6 +72,8 @@ void toggleInputMode(GlobalState& state) {
     state.inputError = false;
     state.showPunctMenu = false;
     if (state.hCandWnd) ShowWindow(state.hCandWnd, SW_HIDE);
+    if (state.hInputWnd) ShowWindow(state.hInputWnd, SW_HIDE);
+
     std::wstring modeMsg = state.chineseMode ? L"中文+全形" : L"英文+半形";
     Utils::updateStatus(state, L"Shift切換到" + modeMsg + L"模式");
     if (state.hWnd) InvalidateRect(state.hWnd, nullptr, TRUE);
