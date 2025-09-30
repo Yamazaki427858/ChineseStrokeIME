@@ -113,6 +113,10 @@
 
 ### 編譯安裝
 
+mingw32-make clean
+
+mingw32-make
+
 ```bash
 # 克隆專案
 git clone https://github.com/your-username/chinese-stroke-ime.git
