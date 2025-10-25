@@ -547,7 +547,8 @@ int calculateCandidateWindowHeight(const GlobalState& state) {
 
 // 修復：改進視窗定位邏輯，確保字碼和候選字視窗同步
 void positionWindowsOptimized(GlobalState& state) {
-    if (!state.isInputting) return; // 不在輸入狀態時直接返回
+    // 修復：標點選單模式下也需要調整視窗
+    if (!state.isInputting && !state.showPunctMenu) return; // 不在輸入狀態且非標點選單時直接返回
     
     ScreenManager::updateMonitorInfo();
     

@@ -153,10 +153,14 @@ void showPunctMenu(GlobalState& state) {
     state.currentPage = 0;
     state.totalPages = (state.candidates.size() + CANDIDATES_PER_PAGE - 1) / CANDIDATES_PER_PAGE;
     state.showCand = true;
+    
+    // 重新定位並調整候選字視窗大小以適應標點選單
     if (state.hCandWnd) {
+        WindowManager::positionWindowsOptimized(state);
         ShowWindow(state.hCandWnd, SW_SHOW);
         InvalidateRect(state.hCandWnd, nullptr, TRUE);
     }
+    
     Utils::updateStatus(state, L"全形標點符號選單（按ESC關閉）");
 }
 
