@@ -1,2 +1,2 @@
 # 版本信息
-VERSION = 3.1.5
+VERSION = 3.0.0
