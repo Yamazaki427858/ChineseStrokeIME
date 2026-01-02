@@ -1,34 +1,52 @@
-山崎大叔不懂編程，全由Claude AI代勞。所以不作定期更新（看心情），有需要可自行下載SourceCode進行開發。
+山崎大叔不懂編程，全由AI代勞。所以不作定期更新（看心情），有需要可自行下載SourceCode進行開發。
+<br>
+<br>
+🔎中文筆劃查找器：https://yamazaki427858.github.io/LookUpStrokes/
+<br>
+<br>
+<br>
 
 
-### 目前最新版本： 中文筆劃輸入法 V2.0 ChineseStrokeIME_Ver2
+### 2026年最新版本： 中文筆劃輸入法 V3.0 ChineseStrokeIME_Ver3 
+下載：https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Download/ChineseStrokeIME_portable(V3.0).zip
+<br>
+<br>
+<br>
+更新日誌：
+<br>
+20260103： 中文筆劃輸入法 V3.0發布
 
 20251025：修復Ver2當候選字視窗已經顯示時，按P鍵打開標點選單會導致視窗顯示不完整的問題。
 
 20251001：Ver2的暫放模式新增文字選取功能、能夠使用"Ctrl+"快捷鍵，最多保存50步歷史。
 
 20250925：發現Ver2﻿的ESC鍵被過度攔截，目前已修復好了。
+<br>
+<br>
+V3.0 新加入功能：
 
-預設界面：
-
-![image](https://github.com/yamazaki0688/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver2/ChineseStrokeIME_Ver2_1.jpg)
-
-暫放模式：
-
-由於輸入法採用全域鍵盤鉤子技術攔截按鍵輸入，若電腦開啟了防毒軟體的「安全瀏覽」或「網銀防護」等功能，可能導致輸入法在瀏覽器中無法使用、打不出字或被直接屏蔽。
-遇到此情況時，可啟用「暫放模式」，讓文字先經由「暫放視窗」輸入，再發送到瀏覽器的文字欄位中。
-
-![image](https://github.com/yamazaki0688/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver2/ChineseStrokeIME_Ver2_2.jpg)
-
-
-
-
-
-
+聯想字：
+<br>
+![image](https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver3/%E8%81%AF%E6%83%B3%E5%AD%97.gif)
+<br>
+<br>
+<br>
+透明化顯示：
+<br>
+![image](https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver3/%E9%80%8F%E6%98%8E%E5%8C%96%E9%A1%AF%E7%A4%BA.gif)
+<br>
+<br>
+<br>
+暫放模式加入剪貼簿功能：
+<br>
+![image](https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver3/%E6%9A%AB%E6%94%BE%E6%A8%A1%E5%BC%8F%E5%8A%A0%E5%85%A5%E5%89%AA%E8%B2%BC%E7%B0%BF%E5%8A%9F%E8%83%BD.gif)
+<br>
+<br>
+<br>
 
 ## 📖 項目簡介
 
-基於 Windows API、採用 C++14 開發的現代化中文筆劃輸入法。集成智慧學習算法、OptimizedUI 介面設計、暫放模式和多螢幕支援。
+基於 Windows API、採用 C++14 開發的中文筆劃輸入法。
 **綠色免安裝，無需管理員權限**，為用戶提供流暢便捷的中文輸入體驗。
 
 
@@ -37,7 +55,7 @@
 
 | 角色 | 成員 | 貢獻領域 |
 |------|------|----------|
-| **主要開發者** | Claude AI | 架構設計、核心演算法、UI/UX 設計 |
+| **主要開發者** | Cursor AI | 架構設計、核心演算法、UI/UX 設計 |
 | **測試工程師** | 山崎大叔（人類） | 功能測試、使用者體驗優化、問題回報 |
 | **技術顧問** | 開源社群 | 程式碼審查、效能優化建議 |
 
@@ -53,37 +71,48 @@
 - **安全說明**：本程式為開源專案，所有程式碼公開透明，不會記錄或傳輸任何按鍵資料
 - **建議解決方案**：
   1. **加入白名單**：將 `ChineseStrokeIME.exe` 加入防毒軟體的信任清單
-  2. **使用暫放模式**：V2.0 新增的暫放模式可降低防毒軟體干擾
-  3. **臨時關閉**：安裝時可暫時關閉即時防護，安裝後重新開啟
+  2. **付錢購買代碼簽署憑證**：我無錢🥲
 
-- **技術說明**：鍵盤鉤子是 Windows 輸入法的標準技術，Microsoft 輸入法、Google 輸入法等都使用相同技術
-- **隱私保護**：程式完全本機運行，不連接網路，不收集任何個人資料
+- **技術說明**：鍵盤鉤子是 Windows 輸入法的標準技術
+- **隱私保護**：程式完全本機運行，不連接網路（Zi-Ma-Biao.txt、wordphrases.txt需連接GitHub下載），不收集任何個人資料
+<br>
+<br>
 
+## ✨ V3.0 重大更新
 
-## ✨ V2.0 重大更新
+## 🌐 線上更新字碼表
+- 首次啟動時，輸入法可從 GitHub 儲存庫即時下載最新字碼表（只需攜帶 ChineseStrokeIME.exe 即可使用）
+- 可手動更新（自定義字碼請先備份）
 
-### 🎨 OptimizedUI 現代化介面
-- **精簡工具列設計**：採用現代化扁平設計風格
-- **智能狀態指示器**：實時顯示輸入模式和系統狀態
-- **懸停交互效果**：提供直觀的視覺回饋
-- **可拖拽視窗組件**：支援工具列和候選字視窗獨立拖拽
+## 🔔 版本更新檢查
+- 啟動時自動檢查 GitHub 上的最新版本（避免頻繁網路請求，預設 24 小時檢查一次）
+- 可在「關於」頁面手動檢查更新
 
-### 📝 創新暫放模式
-- **防毒軟體兼容**：避免防毒軟體阻擋文字輸入的問題
-- **即時編輯功能**：支援中英文混合輸入和即時編輯
-- **智能游標控制**：支援方向鍵、Home/End 等完整編輯操作
-- **一鍵發送**：Enter 鍵快速發送暫放內容到目標應用
+## 🔮 智能聯想字功能（測試中）
+- 根據前一個選字智能推薦下一個常用字
+- 可透過選單隨時開啟或關閉聯想功能（默認關閉，請自行打開）
 
-### 🖥️ 多螢幕智能支援
-- **自動螢幕偵測**：智能識別延伸模式和鏡像模式
-- **位置記憶系統**：分別記憶不同螢幕模式下的視窗位置
-- **安全位置恢復**：螢幕配置變更時自動調整到可見位置
-- **跨螢幕跟隨**：輸入視窗智能跟隨滑鼠位置
+## 🎨 半透明視窗顯示
+- 主視窗與暫放視窗支援半透明顯示
+- 可透過配置檔自訂透明度級別（0-255，默認100）
+- 選單一鍵開啟或關閉透明效果
 
-### ⚙️ 系統整合增強
-- **系統托盤支援**：可最小化到系統托盤，不佔用工作列空間
-- **快捷選單**：右鍵托盤圖示提供完整功能選單
-- **自動重啟功能**：支援程式重啟，保留所有設定和學習記錄
+## ⏸️ 輸入法暫停功能
+- 需要使用其他輸入法時可暫時停用本輸入法
+- 暫停時完全釋放鍵盤鉤子資源
+- 工具列狀態指示燈顯示為灰色
+
+## 📋 暫放模式新增剪貼簿功能
+- 開啟剪貼簿模式後，暫放內容自動複製到系統剪貼簿
+- **快速貼上**:可直接使用 Ctrl+V 在其他應用程式貼上暫放內容
+
+## **⚡ 程式碼重構與效能優化**
+- 鍵盤鉤子接管所有字母輸入，避免與 Windows 內建輸入法衝突
+- 減少冗餘代碼
+- 修復了一些Bug
+
+<br>
+<br>
 
 ## 🎯 核心特色
 
@@ -95,7 +124,7 @@
 ### 智能候選字系統
 - **最短字碼優先**：優先顯示字碼較短的常用字
 - **頻率智能學習**：自動記錄使用習慣，提升常用字排序
-- **3+3 萬用搜尋**：支援 `*` 通配符，如 `uoi*jjj` 快速找字
+- **3+3 萬用搜尋**：支援 `*` 通配符，如 `uoi*jjj` 快速找字（L/0鍵）
 - **上下文學習**：記憶詞組搭配，提供更精準的候選字
 
 ### 完整字碼輸入視窗
@@ -103,6 +132,11 @@
 - **3+3 模式提示**：自動提示建議的 3+3 搜尋模式
 - **錯誤狀態顯示**：清楚標示無效輸入和建議修正
 - **跟隨候選字視窗**：與候選字視窗保持最佳相對位置
+
+### 暫放模式
+- **備用輸入方案**：部分3D遊戲或防毒軟體阻擋文字輸入時使用
+- **即時編輯功能**：支援中英文混合輸入和即時編輯
+- **一鍵發送**：Enter 鍵快速發送暫放內容到目標應用
 
 ## 🚀 快速開始
 
@@ -114,22 +148,30 @@
 
 ### 編譯安裝
 
+```
+# 清理舊編譯檔案
 mingw32-make clean
 
+# 編譯專案
 mingw32-make
 
-```bash
-# 克隆專案
-git clone https://github.com/your-username/chinese-stroke-ime.git
-cd chinese-stroke-ime
+# 或直接重新編譯
+mingw32-make rebuild
 
-# MinGW 編譯
-g++ -std=c++14 -DUNICODE -D_UNICODE -mwindows -O2 \
-    main.cpp buffer_manager.cpp config_loader.cpp dictionary.cpp \
-    ime_core.cpp input_handler.cpp position_manager.cpp \
-    screen_manager.cpp tray_manager.cpp window_manager.cpp \
-    -o ChineseStrokeIME.exe -luser32 -lgdi32 -lshell32 -lole32 \
-    -static-libgcc -static-libstdc++ -Wl,--subsystem,windows
+# 編譯並執行
+mingw32-make run
+
+# MinGW 編譯（V3.0 版本）
+g++ -std=c++11 -Wall -O2 -mwindows -DUNICODE -D_UNICODE \
+    main.cpp ime_core.cpp input_handler.cpp dictionary.cpp \
+    dict_updater.cpp buffer_manager.cpp window_manager.cpp \
+    config_loader.cpp screen_manager.cpp position_manager.cpp \
+    tray_manager.cpp ime_manager.cpp \
+    -o ChineseStrokeIME.exe \
+    -static-libgcc -static-libstdc++ \
+    -lgdi32 -luser32 -lkernel32 -lshell32 -lcomctl32 \
+    -limm32 -lwininet -lcrypt32 \
+    -Wl,--subsystem,windows
 
 # 運行程式
 ./ChineseStrokeIME.exe
@@ -138,13 +180,16 @@ g++ -std=c++14 -DUNICODE -D_UNICODE -mwindows -O2 \
 ### 檔案結構
 
 ```
-├── ChineseStrokeIME.exe        # 主程式
-├── Zi-Ma-Biao.txt             # 主字典檔案
-├── interface_config.ini        # 介面配置檔案
-├── positions.ini               # 位置記憶檔案（自動生成）
+├── ChineseStrokeIME.exe       # 主程式
+├── Zi-Ma-Biao.txt             # 主字典檔案（可從 GitHub 下載）
+├── interface_config.ini       # 介面配置檔案
+├── positions.ini              # 位置記憶檔案（自動生成）
 ├── user_dict.txt              # 用戶學習字典（自動生成）
 ├── text_buffer.txt            # 暫放內容檔案（自動生成）
+├── versioncache.txt           # 版本檢查緩存檔案（自動生成）
+├── wordphrases.txt            # 聯想字詞庫（可從 GitHub 下載）
 └── punct_menu.txt             # 標點符號選單（可選）
+
 ```
 
 ## 🎛️ 配置系統
@@ -153,7 +198,7 @@ g++ -std=c++14 -DUNICODE -D_UNICODE -mwindows -O2 \
 
 ```ini
 ; interface_config.ini - 配置文件
-; 中文筆劃輸入法 V2.0 介面配置
+; 中文筆劃輸入法 V3.0 介面配置
 
 [Colors]
 ; 主視窗顏色
@@ -213,7 +258,7 @@ buffer_font_name=Microsoft JhengHei
 window_width=580
 window_height=70
 
-; 候選字視窗大小 (會根據內容動態調整)
+; 候選字視窗大小
 candidate_window_width=300
 candidate_window_height=320
 
@@ -228,6 +273,14 @@ topmost_check_interval=5000
 force_stay_on_top=1
 ; 失去焦點後重新前置的延遲（毫秒）
 refocus_delay=50
+; 剪貼簿模式開關（0=關閉，1=開啟）
+clipboard_mode=0
+; 半透明顯示開關（0=關閉，1=開啟）
+enable_transparency=0
+; 透明度值（0-255，255=完全不透明，0=完全透明）
+transparency_alpha=100
+; 聯想字功能開關（0=關閉，1=開啟）
+enable_word_prediction=0
 ```
 
 ## 📋 詳細使用說明
@@ -237,7 +290,7 @@ refocus_delay=50
 **OptimizedUI 工具列按鈕**：
 - **筆劃標識**：顯示「筆劃」字樣表示輸入法類型
 - **模式指示器**：「中」表示中文模式，「EN」表示英文模式
-- **狀態燈**：綠色=就緒，橙色=輸入中，紅色=錯誤，黃色=暫放模式
+- **狀態燈**：綠色=就緒，橙色=輸入中，紅色=錯誤
 - **選單按鈕**：「☰」提供功能選單
 - **暫放按鈕**：「⌘」切換暫放模式
 - **恢復跟隨**：「⿻」恢復跟隨滑鼠模式
@@ -280,17 +333,17 @@ refocus_delay=50
 
 ### 暫放模式詳細說明
 
-暫放模式是 V2.0 的創新功能，專為解決防毒軟體干擾問題而設計：
+暫放模式專為無法正常輸入時使用：
 
 #### 啟用暫放模式
 1. 點擊工具列「⌘」按鈕
 2. 或使用系統托盤選單選擇「開啟暫放模式」
-3. 狀態指示燈變為黃色，表示暫放模式已啟動
+3.「⌘」按鈕變為橙色，表示暫放模式已啟動
 
 #### 暫放模式功能
 - **混合輸入**：支援中文筆劃和英文直接輸入
-- **完整編輯**：支援方向鍵移動、Home/End、刪除等操作
-- **即時預覽**：暫放視窗顯示當前編輯內容
+- **完整編輯**：支援方向鍵移動、全選/複制/貼上/刪除等操作
+- **剪貼簿模式**：暫放內容自動複製到系統剪貼簿
 - **字數統計**：實時顯示字數和游標位置
 
 #### 暫放內容操作
@@ -329,7 +382,7 @@ refocus_delay=50
 ### 核心架構設計
 
 ```
-中文筆劃輸入法 V2.0
+中文筆劃輸入法 V3.0
 ├── 核心引擎 (ime_core)
 │   ├── 全域狀態管理
 │   ├── 工具函數庫
@@ -338,23 +391,34 @@ refocus_delay=50
 │   ├── 低階鍵盤鉤子
 │   ├── 智能按鍵分析
 │   ├── 模式切換控制
+│   ├── 輸入法暫停管理 🆕
 │   └── Unicode 文字發送
 ├── 字典管理引擎 (dictionary)
 │   ├── 高效字典載入
 │   ├── 智能排序算法
 │   ├── 學習系統
 │   ├── 3+3 搜尋引擎
+│   ├── 聯想字預測系統 🆕
+│   ├── 詞組記憶引擎 🆕
 │   └── 標點符號系統
+├── 線上更新模組 (dict_updater) 🆕
+│   ├── GitHub 字碼表下載
+│   ├── 版本檢查系統
+│   ├── HTTP/HTTPS 連線管理
+│   ├── 檔案完整性驗證
+│   └── 自動備份機制
 ├── 視窗管理系統 (window_manager)
 │   ├── OptimizedUI 介面
 │   ├── 傳統介面相容
 │   ├── 雙緩衝繪製
 │   ├── 拖拽功能
+│   ├── 半透明效果控制 🆕
 │   └── 字碼輸入視窗
 ├── 暫放管理模組 (buffer_manager)
 │   ├── 暫放模式控制
 │   ├── 文字編輯功能
 │   ├── 檔案自動儲存
+│   ├── 剪貼簿即時同步 🆕
 │   └── 游標管理系統
 ├── 多螢幕支援 (screen_manager)
 │   ├── 螢幕模式偵測
@@ -367,11 +431,13 @@ refocus_delay=50
 ├── 配置管理 (config_loader)
 │   ├── INI 檔案解析
 │   ├── 即時配置載入
+│   ├── 透明度設定管理 🆕
 │   └── 錯誤容錯處理
 └── 系統整合 (tray_manager)
     ├── 系統托盤支援
     ├── 右鍵選單
     └── 程式重啟功能
+
 ```
 
 ### 關鍵技術特性
@@ -396,21 +462,6 @@ refocus_delay=50
 
 ## 🔧 開發與自訂
 
-### 編譯設定
-推薦的編譯器設定：
-```bash
-# 最佳化設定
--O2 -DNDEBUG -march=native
-
-# Unicode 支援
--DUNICODE -D_UNICODE
-
-# 靜態連結（便攜版）
--static-libgcc -static-libstdc++
-
-# 子系統設定
--Wl,--subsystem,windows
-```
 
 ### 自訂字典格式
 `Zi-Ma-Biao.txt` 字典檔案格式：
@@ -500,4 +551,4 @@ refactor: 重構字典載入邏輯
 ⭐ **如果此專案對您有幫助，請給我們一個星標支持！**
 
 
-※ README.md內容由Claude AI撰寫
+※ README.md內容由AI撰寫
