@@ -13,6 +13,8 @@
 <br>
 Ver3.0 SourceCode：https://github.com/Yamazaki427858/ChineseStrokeIME/tree/ChineseStrokeIME/SourceCode/ChineseStrokeIME_Ver3
 <br>
+MinGW-w64 安裝教學（把代碼編譯成exe）：https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/SourceCode/MinGW-w64%20%E5%AE%89%E8%A3%9D%E6%95%99%E5%AD%B8.md
+<br>
 <br>
 更新日誌：
 <br>
