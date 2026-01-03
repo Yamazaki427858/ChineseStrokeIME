@@ -10,7 +10,6 @@
 ### 2026年最新版本： 中文筆劃輸入法 V3.0 ChineseStrokeIME_Ver3 
 下載：https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Download/ChineseStrokeIME_portable(V3.0).zip
 <br>
-https://github.com/Yamazaki427858/ChineseStrokeIME/tree/ChineseStrokeIME/SourceCode/ChineseStrokeIME_Ver3
 <br>
 Ver3.0 SourceCode：https://github.com/Yamazaki427858/ChineseStrokeIME/tree/ChineseStrokeIME/SourceCode/ChineseStrokeIME_Ver3
 <br>
