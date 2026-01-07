@@ -4,7 +4,7 @@
 山崎大叔不懂編程，全由AI代勞。所以不作定期更新（看心情），有需要可自行下載SourceCode進行開發。
 <br>
 <br>
-這裡發問題：https://github.com/Yamazaki427858/ChineseStrokeIME/issues
+📝這裡發問題：https://github.com/Yamazaki427858/ChineseStrokeIME/issues
 <br>
 <br>
 🔎中文筆劃查找器：https://yamazaki427858.github.io/LookUpStrokes/
@@ -14,14 +14,18 @@
 
 
 ### 2026年最新版本： 中文筆劃輸入法 V3.0.1
-下載：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases
+💾下載：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases
 <br>
 <br>
-SourceCode：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases
+👨‍💻SourceCode：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases
 <br>
 <br>
+[![CodeQL](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/actions/workflows/github-code-scanning/codeql)
+[![Latest Release](https://img.shields.io/github/v/release/Yamazaki427858/ChineseStrokeIME_Releases)](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Yamazaki427858/ChineseStrokeIME_Releases/total)](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases)
 <br>
-更新日誌：
+<br>
+📋更新日誌：
 <br>
 20260108：V3.0.1更新，解決了在 Windows 檔案總管搜尋欄無法正常輸入中文的問題。
 
