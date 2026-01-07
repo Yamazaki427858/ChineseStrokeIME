@@ -13,7 +13,7 @@
 下載：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases
 <br>
 <br>
-Ver3.0 SourceCode：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases
+SourceCode：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases
 <br>
 <br>
 <br>
