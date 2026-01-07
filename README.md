@@ -1,3 +1,5 @@
+這頁面是用來當介紹和倉庫
+<br>
 山崎大叔不懂編程，全由AI代勞。所以不作定期更新（看心情），有需要可自行下載SourceCode進行開發。
 <br>
 <br>
@@ -7,18 +9,18 @@
 <br>
 
 
-### 2026年最新版本： 中文筆劃輸入法 V3.0 ChineseStrokeIME_Ver3 
-下載：https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Download/ChineseStrokeIME_portable(V3.0).zip
+### 2026年最新版本： 中文筆劃輸入法 V3.0.1
+下載：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases
 <br>
 <br>
-Ver3.0 SourceCode：https://github.com/Yamazaki427858/ChineseStrokeIME/tree/ChineseStrokeIME/SourceCode/ChineseStrokeIME_Ver3
+Ver3.0 SourceCode：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases
 <br>
-<br>
-MinGW-w64 安裝教學（把代碼編譯成exe）：https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/SourceCode/MinGW-w64%20%E5%AE%89%E8%A3%9D%E6%95%99%E5%AD%B8.md
 <br>
 <br>
 更新日誌：
 <br>
+20260108：V3.0.1更新，解決了在 Windows 檔案總管搜尋欄無法正常輸入中文的問題。
+
 20260103： 中文筆劃輸入法 V3.0發布
 
 20251025：修復Ver2當候選字視窗已經顯示時，按P鍵打開標點選單會導致視窗顯示不完整的問題。
