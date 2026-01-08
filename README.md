@@ -4,7 +4,7 @@
 山崎大叔不懂編程，全由AI代勞。所以不作定期更新（看心情），有需要可自行下載SourceCode進行開發。
 <br>
 <br>
-📝這裡發問題：https://github.com/Yamazaki427858/ChineseStrokeIME/issues
+📮這裡發問題：https://github.com/Yamazaki427858/ChineseStrokeIME/issues
 <br>
 <br>
 🔎中文筆劃查找器：https://yamazaki427858.github.io/LookUpStrokes/
