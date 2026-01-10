@@ -253,10 +253,10 @@ V3.0 新加入功能：
 
 ```
 ├── ChineseStrokeIME.exe       # 主程式
-├── Zi-Ma-Biao.txt             # 主字典檔案（可從 GitHub 下載）
+├── Zi-Ma-Biao.txt             # 字碼表檔案（可從 GitHub 下載）
 ├── interface_config.ini       # 介面配置檔案
 ├── positions.ini              # 位置記憶檔案（自動生成）
-├── user_dict.txt              # 用戶學習字典（自動生成）
+├── user_dict.txt              # 用戶記憶字典（自動生成）
 ├── text_buffer.txt            # 暫放內容檔案（自動生成）
 ├── versioncache.txt           # 版本檢查緩存檔案（自動生成）
 ├── wordphrases.txt            # 聯想字詞庫（可從 GitHub 下載）
