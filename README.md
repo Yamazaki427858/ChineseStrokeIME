@@ -1,17 +1,9 @@
-這頁面是用來當介紹和倉庫
+## 這頁面是用來當介紹和倉庫
 <br>
 <br>
 山崎大叔不懂編程，全由AI代勞。所以不作定期更新（看心情），有需要可自行下載SourceCode進行開發。
 <br>
 <br>
-📮這裡發問題：https://github.com/Yamazaki427858/ChineseStrokeIME/issues
-<br>
-<br>
-🔎中文筆劃查找器：https://yamazaki427858.github.io/LookUpStrokes/
-<br>
-<br>
-<br>
-
 
 ### 2026年最新版本： 中文筆劃輸入法 V3.0.1
 💾下載：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases
@@ -20,25 +12,33 @@
 👨‍💻SourceCode：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases
 <br>
 <br>
+<br>
+📮這裡發問題：https://github.com/Yamazaki427858/ChineseStrokeIME/issues
+<br>
+<br>
+🔎中文筆劃查找器：https://yamazaki427858.github.io/LookUpStrokes/
+<br>
+<br>
+
 [![CodeQL](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/actions/workflows/github-code-scanning/codeql)
 [![Latest Release](https://img.shields.io/github/v/release/Yamazaki427858/ChineseStrokeIME_Releases)](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Yamazaki427858/ChineseStrokeIME_Releases/total)](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases)
 <br>
 <br>
-📋更新日誌：
-<br>
+## 📋更新日誌：
 20260108：V3.0.1更新，解決了在 Windows 檔案總管搜尋欄無法正常輸入中文的問題。
-
+<br>
 20260103： 中文筆劃輸入法 V3.0發布
-
+<br>
 20251025：修復Ver2當候選字視窗已經顯示時，按P鍵打開標點選單會導致視窗顯示不完整的問題。
-
+<br>
 20251001：Ver2的暫放模式新增文字選取功能、能夠使用"Ctrl+"快捷鍵，最多保存50步歷史。
-
+<br>
 20250925：發現Ver2﻿的ESC鍵被過度攔截，目前已修復好了。
 <br>
 <br>
-V3.0 新加入功能：
+
+### V3.0 新加入功能：
 
 聯想字：
 <br>
