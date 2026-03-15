@@ -1,66 +1,92 @@
 ## 這頁面是用來當介紹和倉庫
-<br>
-<br>
-山崎大叔不懂編程，全由AI代勞。所以不作定期更新（看心情），有需要可自行下載SourceCode進行開發。
-<br>
-<br>
-✏️好易記網址：https://bit.ly/uiojk 隨時下載
-<br>
-<br>
 
-### 2026年最新版本： 中文筆劃輸入法 V3.0.1
+
+  
+山崎大叔不懂編程，全由AI代勞。所以不作定期更新（看心情），有需要可自行下載SourceCode進行開發。
+
+
+
+✏️好易記網址：https://bit.ly/uiojk 隨時下載
+
+
+### 2026年3月最新版本： 中文筆劃輸入法 V3.1.0
 💾下載：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases
-<br>
-<br>
+
+
+
 👨‍💻SourceCode：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases
 <br>
 <br>
-<br>
+
+
 📮這裡發問題：https://github.com/Yamazaki427858/ChineseStrokeIME/issues
-<br>
-<br>
+
+
+
 🔎中文筆劃查找器：https://yamazaki427858.github.io/LookUpStrokes/
-<br>
-<br>
+
+
+
+
+
+
 
 [![CodeQL](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/actions/workflows/github-code-scanning/codeql)
 [![Latest Release](https://img.shields.io/github/v/release/Yamazaki427858/ChineseStrokeIME_Releases)](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Yamazaki427858/ChineseStrokeIME_Releases/total)](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases)
 <br>
 <br>
+
+
+
+
 ## 📋更新日誌：
+20260316： 中文筆劃輸入法 V3.1.0發布，強化了**智能聯想引擎**相關功能。
+
+
+
 20260108：V3.0.1更新，解決了在 Windows 檔案總管搜尋欄無法正常輸入中文的問題。
-<br>
+
+
+
 20260103： 中文筆劃輸入法 V3.0發布
-<br>
+
+
+
 20251025：修復Ver2當候選字視窗已經顯示時，按P鍵打開標點選單會導致視窗顯示不完整的問題。
-<br>
+
+
+
 20251001：Ver2的暫放模式新增文字選取功能、能夠使用"Ctrl+"快捷鍵，最多保存50步歷史。
-<br>
+
+
+
 20250925：發現Ver2﻿的ESC鍵被過度攔截，目前已修復好了。
+
 <br>
 <br>
 
-### V3.0 新加入功能：
 
-聯想字：
-<br>
-![image](https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver3/%E8%81%AF%E6%83%B3%E5%AD%97.gif)
-<br>
-<br>
-<br>
-透明化顯示：
-<br>
-![image](https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver3/%E9%80%8F%E6%98%8E%E5%8C%96%E9%A1%AF%E7%A4%BA.gif)
-<br>
-<br>
-<br>
-暫放模式加入剪貼簿功能：
-<br>
-![image](https://github.com/Yamazaki427858/ChineseStrokeIME/blob/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver3/%E6%9A%AB%E6%94%BE%E6%A8%A1%E5%BC%8F%E5%8A%A0%E5%85%A5%E5%89%AA%E8%B2%BC%E7%B0%BF%E5%8A%9F%E8%83%BD.gif)
-<br>
-<br>
-<br>
+### V3.1.0 新加入功能：
+
+[👉 點此查看 V3.1.0 完整使用說明](https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/blob/5ba3a3c91ef08382bb5cac9e6f91c7441ac7371b/v3.1.0%E4%BD%BF%E7%94%A8%E8%AA%AA%E6%98%8E.md)
+
+
+**強化聯想引擎：**
+
+![強化聯想引擎](https://raw.githubusercontent.com/Yamazaki427858/ChineseStrokeIME/refs/heads/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver3.1/v3.1-%E8%81%AF%E6%83%B3%E7%A4%BA%E7%AF%84.gif)
+
+
+**多字聯想：**
+
+![多字聯想](https://raw.githubusercontent.com/Yamazaki427858/ChineseStrokeIME/refs/heads/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver3.1/v3.1-%E5%A4%9A%E5%AD%97%E8%81%AF%E6%83%B3.jpeg)
+
+
+**設定聯想：**
+
+> 小貼士：在選字視窗中按住 Ctrl 鍵，即可高亮顯示候選字。
+
+![設定聯想](https://raw.githubusercontent.com/Yamazaki427858/ChineseStrokeIME/refs/heads/ChineseStrokeIME/Images/Preview/ChineseStrokeIME_Ver3.1/v3.1-%E8%A8%AD%E5%AE%9A%E8%81%AF%E6%83%B3.jpeg)
 
 ## 📖 項目簡介
 
@@ -96,39 +122,32 @@
 <br>
 <br>
 
-## ✨ V3.0 重大更新
+## ✨ V3.1.0 重大更新
 
-## 🌐 線上更新字碼表
-- 首次啟動時，輸入法可從 GitHub 儲存庫即時下載最新字碼表（只需攜帶 ChineseStrokeIME.exe 即可使用）
-- 可手動更新（自定義字碼請先備份）
+## 🔮 聯想引擎強化
+v3.1.0 主要強化了**智能聯想引擎**相關功能，讓「下一個字」的推薦更貼近你的使用習慣：
 
-## 🔔 版本更新檢查
-- 啟動時自動檢查 GitHub 上的最新版本（避免頻繁網路請求，預設 24 小時檢查一次）
-- 可在「關於」頁面手動檢查更新
+- **📈 更穩定的聯想排序**：結合字碼表內建的相鄰字對與個人使用記錄，候選順序更合理。
+- **⚑⚐ 置頂與鎖定**：可對聯想條目設為「置頂 (pinned)」或「鎖定 (locked)」，常用搭配會固定在前方。
+- **📝 右鍵管理**：在候選字／聯想字上按右鍵即可設定置頂、鎖定、刪除此聯想或永不再顯示，操作直覺。
+- **💾 個人學習檔**：聯想記錄寫入 `user\context_learning.txt`，重啟後仍會保留你的設定與學習結果。
 
-## 🔮 智能聯想字功能（測試中）
-- 根據前一個選字智能推薦下一個常用字
-- 可透過選單隨時開啟或關閉聯想功能（默認關閉，請自行打開）
+## 🔧 小問題優化與修復
 
-## 🎨 半透明視窗顯示
-- 主視窗與暫放視窗支援半透明顯示
-- 可透過配置檔自訂透明度級別（0-255，默認100）
-- 選單一鍵開啟或關閉透明效果
+- **📁 整齊的目錄結構**  
+  程式以 exe 所在目錄為根目錄，自動使用並建立 **`system\`**（字碼表、詞語庫等）與 **`user\`**（使用者字典、聯想學習、介面設定、標點選單等）；建議將程式放在英文路徑下，避免中文或特殊字元造成讀寫異常。
 
-## ⏸️ 輸入法暫停功能
-- 需要使用其他輸入法時可暫時停用本輸入法
-- 暫停時完全釋放鍵盤鉤子資源
-- 工具列狀態指示燈顯示為灰色
+- **一丨丿丶フ 筆劃符號開關**  
+  可在設定或選單中切換「輸入框顯示筆劃符號（一丨丿丶フ）」或「英文字母（u i o j k）」，依個人習慣選擇。
 
-## 📋 暫放模式新增剪貼簿功能
-- 開啟剪貼簿模式後，暫放內容自動複製到系統剪貼簿
-- 可直接使用 Ctrl+V 在其他應用程式貼上暫放內容
-- 按下「○」按鈕，待綠燈亮起即可使用
+- **🎯 自訂 3+3 萬用字元按鍵**  
+  萬用字元 `*` 的觸發鍵可在 `user\interfaceconfig.ini` 的 `[InputSettings]` 中自訂（如 `wildcardKey1`、`wildcardKey2`），預設為 **L** 與 **NumPad0**，方便不同鍵盤配置。
 
-## **⚡ 程式碼重構與效能優化**
-- 鍵盤鉤子接管所有字母輸入，避免與 Windows 內建輸入法衝突
-- 減少冗餘代碼
+- **⌨️ 按標點符號清除視窗**  
+  輸入標點後會一併清空字碼與候選視窗，避免殘留上一輪的候選，畫面更乾淨。
+
 - 修復了一些Bug
+
 
 <br>
 <br>
