@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "version": "0.9.0",
+  "generated": "2026-06-18",
+  "source": "unicode-emoji-json@0.9.0",
+  "grid": {
+    "cols": 8,
+    "rows": 5
+  },
+  "groups": [
+    {
+      "slug": "smileys_emotion",
+      "label_zh": "笑臉",
+      "icon": "😀",
+      "file": "smileys_emotion.json",
+      "count": 171
+    },
+    {
+      "slug": "people_body",
+      "label_zh": "人物",
+      "icon": "👤",
+      "file": "people_body.json",
+      "count": 388
+    },
+    {
+      "slug": "animals_nature",
+      "label_zh": "動物",
+      "icon": "🐻",
+      "file": "animals_nature.json",
+      "count": 160
+    },
+    {
+      "slug": "food_drink",
+      "label_zh": "食物",
+      "icon": "🍔",
+      "file": "food_drink.json",
+      "count": 131
+    },
+    {
+      "slug": "travel_places",
+      "label_zh": "旅行",
+      "icon": "✈️",
+      "file": "travel_places.json",
+      "count": 219
+    },
+    {
+      "slug": "activities",
+      "label_zh": "活動",
+      "icon": "⚽",
+      "file": "activities.json",
+      "count": 85
+    },
+    {
+      "slug": "objects",
+      "label_zh": "物品",
+      "icon": "💡",
+      "file": "objects.json",
+      "count": 266
+    },
+    {
+      "slug": "symbols",
+      "label_zh": "符號",
+      "icon": "🔣",
+      "file": "symbols.json",
+      "count": 224
+    },
+    {
+      "slug": "flags",
+      "label_zh": "旗幟",
+      "icon": "🏳️",
+      "file": "flags.json",
+      "count": 270
+    }
+  ]
+}

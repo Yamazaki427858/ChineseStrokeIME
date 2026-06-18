@@ -1,0 +1,1500 @@
+{
+  "slug": "people_body",
+  "label_zh": "人物",
+  "emojis": [
+    {
+      "e": "👋",
+      "skin": true
+    },
+    {
+      "e": "🤚",
+      "skin": true
+    },
+    {
+      "e": "🖐️",
+      "skin": true
+    },
+    {
+      "e": "✋",
+      "skin": true
+    },
+    {
+      "e": "🖖",
+      "skin": true
+    },
+    {
+      "e": "🫱",
+      "skin": true
+    },
+    {
+      "e": "🫲",
+      "skin": true
+    },
+    {
+      "e": "🫳",
+      "skin": true
+    },
+    {
+      "e": "🫴",
+      "skin": true
+    },
+    {
+      "e": "🫷",
+      "skin": true
+    },
+    {
+      "e": "🫸",
+      "skin": true
+    },
+    {
+      "e": "👌",
+      "skin": true
+    },
+    {
+      "e": "🤌",
+      "skin": true
+    },
+    {
+      "e": "🤏",
+      "skin": true
+    },
+    {
+      "e": "✌️",
+      "skin": true
+    },
+    {
+      "e": "🤞",
+      "skin": true
+    },
+    {
+      "e": "🫰",
+      "skin": true
+    },
+    {
+      "e": "🤟",
+      "skin": true
+    },
+    {
+      "e": "🤘",
+      "skin": true
+    },
+    {
+      "e": "🤙",
+      "skin": true
+    },
+    {
+      "e": "👈",
+      "skin": true
+    },
+    {
+      "e": "👉",
+      "skin": true
+    },
+    {
+      "e": "👆",
+      "skin": true
+    },
+    {
+      "e": "🖕",
+      "skin": true
+    },
+    {
+      "e": "👇",
+      "skin": true
+    },
+    {
+      "e": "☝️",
+      "skin": true
+    },
+    {
+      "e": "🫵",
+      "skin": true
+    },
+    {
+      "e": "👍",
+      "skin": true
+    },
+    {
+      "e": "👎",
+      "skin": true
+    },
+    {
+      "e": "✊",
+      "skin": true
+    },
+    {
+      "e": "👊",
+      "skin": true
+    },
+    {
+      "e": "🤛",
+      "skin": true
+    },
+    {
+      "e": "🤜",
+      "skin": true
+    },
+    {
+      "e": "👏",
+      "skin": true
+    },
+    {
+      "e": "🙌",
+      "skin": true
+    },
+    {
+      "e": "🫶",
+      "skin": true
+    },
+    {
+      "e": "👐",
+      "skin": true
+    },
+    {
+      "e": "🤲",
+      "skin": true
+    },
+    {
+      "e": "🤝",
+      "skin": true
+    },
+    {
+      "e": "🙏",
+      "skin": true
+    },
+    {
+      "e": "✍️",
+      "skin": true
+    },
+    {
+      "e": "💅",
+      "skin": true
+    },
+    {
+      "e": "🤳",
+      "skin": true
+    },
+    {
+      "e": "💪",
+      "skin": true
+    },
+    {
+      "e": "🦾"
+    },
+    {
+      "e": "🦿"
+    },
+    {
+      "e": "🦵",
+      "skin": true
+    },
+    {
+      "e": "🦶",
+      "skin": true
+    },
+    {
+      "e": "👂",
+      "skin": true
+    },
+    {
+      "e": "🦻",
+      "skin": true
+    },
+    {
+      "e": "👃",
+      "skin": true
+    },
+    {
+      "e": "🧠"
+    },
+    {
+      "e": "🫀"
+    },
+    {
+      "e": "🫁"
+    },
+    {
+      "e": "🦷"
+    },
+    {
+      "e": "🦴"
+    },
+    {
+      "e": "👀"
+    },
+    {
+      "e": "👁️"
+    },
+    {
+      "e": "👅"
+    },
+    {
+      "e": "👄"
+    },
+    {
+      "e": "🫦"
+    },
+    {
+      "e": "👶",
+      "skin": true
+    },
+    {
+      "e": "🧒",
+      "skin": true
+    },
+    {
+      "e": "👦",
+      "skin": true
+    },
+    {
+      "e": "👧",
+      "skin": true
+    },
+    {
+      "e": "🧑",
+      "skin": true
+    },
+    {
+      "e": "👱",
+      "skin": true
+    },
+    {
+      "e": "👨",
+      "skin": true
+    },
+    {
+      "e": "🧔",
+      "skin": true
+    },
+    {
+      "e": "🧔‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧔‍♀️",
+      "skin": true
+    },
+    {
+      "e": "👨‍🦰",
+      "skin": true
+    },
+    {
+      "e": "👨‍🦱",
+      "skin": true
+    },
+    {
+      "e": "👨‍🦳",
+      "skin": true
+    },
+    {
+      "e": "👨‍🦲",
+      "skin": true
+    },
+    {
+      "e": "👩",
+      "skin": true
+    },
+    {
+      "e": "👩‍🦰",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🦰",
+      "skin": true
+    },
+    {
+      "e": "👩‍🦱",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🦱",
+      "skin": true
+    },
+    {
+      "e": "👩‍🦳",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🦳",
+      "skin": true
+    },
+    {
+      "e": "👩‍🦲",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🦲",
+      "skin": true
+    },
+    {
+      "e": "👱‍♀️",
+      "skin": true
+    },
+    {
+      "e": "👱‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧓",
+      "skin": true
+    },
+    {
+      "e": "👴",
+      "skin": true
+    },
+    {
+      "e": "👵",
+      "skin": true
+    },
+    {
+      "e": "🙍",
+      "skin": true
+    },
+    {
+      "e": "🙍‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🙍‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🙎",
+      "skin": true
+    },
+    {
+      "e": "🙎‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🙎‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🙅",
+      "skin": true
+    },
+    {
+      "e": "🙅‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🙅‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🙆",
+      "skin": true
+    },
+    {
+      "e": "🙆‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🙆‍♀️",
+      "skin": true
+    },
+    {
+      "e": "💁",
+      "skin": true
+    },
+    {
+      "e": "💁‍♂️",
+      "skin": true
+    },
+    {
+      "e": "💁‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🙋",
+      "skin": true
+    },
+    {
+      "e": "🙋‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🙋‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧏",
+      "skin": true
+    },
+    {
+      "e": "🧏‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧏‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🙇",
+      "skin": true
+    },
+    {
+      "e": "🙇‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🙇‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🤦",
+      "skin": true
+    },
+    {
+      "e": "🤦‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🤦‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🤷",
+      "skin": true
+    },
+    {
+      "e": "🤷‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🤷‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧑‍⚕️",
+      "skin": true
+    },
+    {
+      "e": "👨‍⚕️",
+      "skin": true
+    },
+    {
+      "e": "👩‍⚕️",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🎓",
+      "skin": true
+    },
+    {
+      "e": "👨‍🎓",
+      "skin": true
+    },
+    {
+      "e": "👩‍🎓",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🏫",
+      "skin": true
+    },
+    {
+      "e": "👨‍🏫",
+      "skin": true
+    },
+    {
+      "e": "👩‍🏫",
+      "skin": true
+    },
+    {
+      "e": "🧑‍⚖️",
+      "skin": true
+    },
+    {
+      "e": "👨‍⚖️",
+      "skin": true
+    },
+    {
+      "e": "👩‍⚖️",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🌾",
+      "skin": true
+    },
+    {
+      "e": "👨‍🌾",
+      "skin": true
+    },
+    {
+      "e": "👩‍🌾",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🍳",
+      "skin": true
+    },
+    {
+      "e": "👨‍🍳",
+      "skin": true
+    },
+    {
+      "e": "👩‍🍳",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🔧",
+      "skin": true
+    },
+    {
+      "e": "👨‍🔧",
+      "skin": true
+    },
+    {
+      "e": "👩‍🔧",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🏭",
+      "skin": true
+    },
+    {
+      "e": "👨‍🏭",
+      "skin": true
+    },
+    {
+      "e": "👩‍🏭",
+      "skin": true
+    },
+    {
+      "e": "🧑‍💼",
+      "skin": true
+    },
+    {
+      "e": "👨‍💼",
+      "skin": true
+    },
+    {
+      "e": "👩‍💼",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🔬",
+      "skin": true
+    },
+    {
+      "e": "👨‍🔬",
+      "skin": true
+    },
+    {
+      "e": "👩‍🔬",
+      "skin": true
+    },
+    {
+      "e": "🧑‍💻",
+      "skin": true
+    },
+    {
+      "e": "👨‍💻",
+      "skin": true
+    },
+    {
+      "e": "👩‍💻",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🎤",
+      "skin": true
+    },
+    {
+      "e": "👨‍🎤",
+      "skin": true
+    },
+    {
+      "e": "👩‍🎤",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🎨",
+      "skin": true
+    },
+    {
+      "e": "👨‍🎨",
+      "skin": true
+    },
+    {
+      "e": "👩‍🎨",
+      "skin": true
+    },
+    {
+      "e": "🧑‍✈️",
+      "skin": true
+    },
+    {
+      "e": "👨‍✈️",
+      "skin": true
+    },
+    {
+      "e": "👩‍✈️",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🚀",
+      "skin": true
+    },
+    {
+      "e": "👨‍🚀",
+      "skin": true
+    },
+    {
+      "e": "👩‍🚀",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🚒",
+      "skin": true
+    },
+    {
+      "e": "👨‍🚒",
+      "skin": true
+    },
+    {
+      "e": "👩‍🚒",
+      "skin": true
+    },
+    {
+      "e": "👮",
+      "skin": true
+    },
+    {
+      "e": "👮‍♂️",
+      "skin": true
+    },
+    {
+      "e": "👮‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🕵️",
+      "skin": true
+    },
+    {
+      "e": "🕵️‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🕵️‍♀️",
+      "skin": true
+    },
+    {
+      "e": "💂",
+      "skin": true
+    },
+    {
+      "e": "💂‍♂️",
+      "skin": true
+    },
+    {
+      "e": "💂‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🥷",
+      "skin": true
+    },
+    {
+      "e": "👷",
+      "skin": true
+    },
+    {
+      "e": "👷‍♂️",
+      "skin": true
+    },
+    {
+      "e": "👷‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🫅",
+      "skin": true
+    },
+    {
+      "e": "🤴",
+      "skin": true
+    },
+    {
+      "e": "👸",
+      "skin": true
+    },
+    {
+      "e": "👳",
+      "skin": true
+    },
+    {
+      "e": "👳‍♂️",
+      "skin": true
+    },
+    {
+      "e": "👳‍♀️",
+      "skin": true
+    },
+    {
+      "e": "👲",
+      "skin": true
+    },
+    {
+      "e": "🧕",
+      "skin": true
+    },
+    {
+      "e": "🤵",
+      "skin": true
+    },
+    {
+      "e": "🤵‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🤵‍♀️",
+      "skin": true
+    },
+    {
+      "e": "👰",
+      "skin": true
+    },
+    {
+      "e": "👰‍♂️",
+      "skin": true
+    },
+    {
+      "e": "👰‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🤰",
+      "skin": true
+    },
+    {
+      "e": "🫃",
+      "skin": true
+    },
+    {
+      "e": "🫄",
+      "skin": true
+    },
+    {
+      "e": "🤱",
+      "skin": true
+    },
+    {
+      "e": "👩‍🍼",
+      "skin": true
+    },
+    {
+      "e": "👨‍🍼",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🍼",
+      "skin": true
+    },
+    {
+      "e": "👼",
+      "skin": true
+    },
+    {
+      "e": "🎅",
+      "skin": true
+    },
+    {
+      "e": "🤶",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🎄",
+      "skin": true
+    },
+    {
+      "e": "🦸",
+      "skin": true
+    },
+    {
+      "e": "🦸‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🦸‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🦹",
+      "skin": true
+    },
+    {
+      "e": "🦹‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🦹‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧙",
+      "skin": true
+    },
+    {
+      "e": "🧙‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧙‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧚",
+      "skin": true
+    },
+    {
+      "e": "🧚‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧚‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧛",
+      "skin": true
+    },
+    {
+      "e": "🧛‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧛‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧜",
+      "skin": true
+    },
+    {
+      "e": "🧜‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧜‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧝",
+      "skin": true
+    },
+    {
+      "e": "🧝‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧝‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧞"
+    },
+    {
+      "e": "🧞‍♂️"
+    },
+    {
+      "e": "🧞‍♀️"
+    },
+    {
+      "e": "🧟"
+    },
+    {
+      "e": "🧟‍♂️"
+    },
+    {
+      "e": "🧟‍♀️"
+    },
+    {
+      "e": "🧌"
+    },
+    {
+      "e": "🫈"
+    },
+    {
+      "e": "💆",
+      "skin": true
+    },
+    {
+      "e": "💆‍♂️",
+      "skin": true
+    },
+    {
+      "e": "💆‍♀️",
+      "skin": true
+    },
+    {
+      "e": "💇",
+      "skin": true
+    },
+    {
+      "e": "💇‍♂️",
+      "skin": true
+    },
+    {
+      "e": "💇‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🚶",
+      "skin": true
+    },
+    {
+      "e": "🚶‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🚶‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🚶‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🚶‍♀️‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🚶‍♂️‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🧍",
+      "skin": true
+    },
+    {
+      "e": "🧍‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧍‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧎",
+      "skin": true
+    },
+    {
+      "e": "🧎‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧎‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧎‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🧎‍♀️‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🧎‍♂️‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🦯",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🦯‍➡️",
+      "skin": true
+    },
+    {
+      "e": "👨‍🦯",
+      "skin": true
+    },
+    {
+      "e": "👨‍🦯‍➡️",
+      "skin": true
+    },
+    {
+      "e": "👩‍🦯",
+      "skin": true
+    },
+    {
+      "e": "👩‍🦯‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🦼",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🦼‍➡️",
+      "skin": true
+    },
+    {
+      "e": "👨‍🦼",
+      "skin": true
+    },
+    {
+      "e": "👨‍🦼‍➡️",
+      "skin": true
+    },
+    {
+      "e": "👩‍🦼",
+      "skin": true
+    },
+    {
+      "e": "👩‍🦼‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🦽",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🦽‍➡️",
+      "skin": true
+    },
+    {
+      "e": "👨‍🦽",
+      "skin": true
+    },
+    {
+      "e": "👨‍🦽‍➡️",
+      "skin": true
+    },
+    {
+      "e": "👩‍🦽",
+      "skin": true
+    },
+    {
+      "e": "👩‍🦽‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🏃",
+      "skin": true
+    },
+    {
+      "e": "🏃‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🏃‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🏃‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🏃‍♀️‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🏃‍♂️‍➡️",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🩰",
+      "skin": true
+    },
+    {
+      "e": "💃",
+      "skin": true
+    },
+    {
+      "e": "🕺",
+      "skin": true
+    },
+    {
+      "e": "🕴️",
+      "skin": true
+    },
+    {
+      "e": "👯",
+      "skin": true
+    },
+    {
+      "e": "👯‍♂️",
+      "skin": true
+    },
+    {
+      "e": "👯‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧖",
+      "skin": true
+    },
+    {
+      "e": "🧖‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧖‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧗",
+      "skin": true
+    },
+    {
+      "e": "🧗‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧗‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🤺"
+    },
+    {
+      "e": "🏇",
+      "skin": true
+    },
+    {
+      "e": "⛷️"
+    },
+    {
+      "e": "🏂",
+      "skin": true
+    },
+    {
+      "e": "🏌️",
+      "skin": true
+    },
+    {
+      "e": "🏌️‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🏌️‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🏄",
+      "skin": true
+    },
+    {
+      "e": "🏄‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🏄‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🚣",
+      "skin": true
+    },
+    {
+      "e": "🚣‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🚣‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🏊",
+      "skin": true
+    },
+    {
+      "e": "🏊‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🏊‍♀️",
+      "skin": true
+    },
+    {
+      "e": "⛹️",
+      "skin": true
+    },
+    {
+      "e": "⛹️‍♂️",
+      "skin": true
+    },
+    {
+      "e": "⛹️‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🏋️",
+      "skin": true
+    },
+    {
+      "e": "🏋️‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🏋️‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🚴",
+      "skin": true
+    },
+    {
+      "e": "🚴‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🚴‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🚵",
+      "skin": true
+    },
+    {
+      "e": "🚵‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🚵‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🤸",
+      "skin": true
+    },
+    {
+      "e": "🤸‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🤸‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🤼",
+      "skin": true
+    },
+    {
+      "e": "🤼‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🤼‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🤽",
+      "skin": true
+    },
+    {
+      "e": "🤽‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🤽‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🤾",
+      "skin": true
+    },
+    {
+      "e": "🤾‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🤾‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🤹",
+      "skin": true
+    },
+    {
+      "e": "🤹‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🤹‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🧘",
+      "skin": true
+    },
+    {
+      "e": "🧘‍♂️",
+      "skin": true
+    },
+    {
+      "e": "🧘‍♀️",
+      "skin": true
+    },
+    {
+      "e": "🛀",
+      "skin": true
+    },
+    {
+      "e": "🛌",
+      "skin": true
+    },
+    {
+      "e": "🧑‍🤝‍🧑",
+      "skin": true
+    },
+    {
+      "e": "👭",
+      "skin": true
+    },
+    {
+      "e": "👫",
+      "skin": true
+    },
+    {
+      "e": "👬",
+      "skin": true
+    },
+    {
+      "e": "💏",
+      "skin": true
+    },
+    {
+      "e": "👩‍❤️‍💋‍👨",
+      "skin": true
+    },
+    {
+      "e": "👨‍❤️‍💋‍👨",
+      "skin": true
+    },
+    {
+      "e": "👩‍❤️‍💋‍👩",
+      "skin": true
+    },
+    {
+      "e": "💑",
+      "skin": true
+    },
+    {
+      "e": "👩‍❤️‍👨",
+      "skin": true
+    },
+    {
+      "e": "👨‍❤️‍👨",
+      "skin": true
+    },
+    {
+      "e": "👩‍❤️‍👩",
+      "skin": true
+    },
+    {
+      "e": "👨‍👩‍👦"
+    },
+    {
+      "e": "👨‍👩‍👧"
+    },
+    {
+      "e": "👨‍👩‍👧‍👦"
+    },
+    {
+      "e": "👨‍👩‍👦‍👦"
+    },
+    {
+      "e": "👨‍👩‍👧‍👧"
+    },
+    {
+      "e": "👨‍👨‍👦"
+    },
+    {
+      "e": "👨‍👨‍👧"
+    },
+    {
+      "e": "👨‍👨‍👧‍👦"
+    },
+    {
+      "e": "👨‍👨‍👦‍👦"
+    },
+    {
+      "e": "👨‍👨‍👧‍👧"
+    },
+    {
+      "e": "👩‍👩‍👦"
+    },
+    {
+      "e": "👩‍👩‍👧"
+    },
+    {
+      "e": "👩‍👩‍👧‍👦"
+    },
+    {
+      "e": "👩‍👩‍👦‍👦"
+    },
+    {
+      "e": "👩‍👩‍👧‍👧"
+    },
+    {
+      "e": "👨‍👦"
+    },
+    {
+      "e": "👨‍👦‍👦"
+    },
+    {
+      "e": "👨‍👧"
+    },
+    {
+      "e": "👨‍👧‍👦"
+    },
+    {
+      "e": "👨‍👧‍👧"
+    },
+    {
+      "e": "👩‍👦"
+    },
+    {
+      "e": "👩‍👦‍👦"
+    },
+    {
+      "e": "👩‍👧"
+    },
+    {
+      "e": "👩‍👧‍👦"
+    },
+    {
+      "e": "👩‍👧‍👧"
+    },
+    {
+      "e": "🗣️"
+    },
+    {
+      "e": "👤"
+    },
+    {
+      "e": "👥"
+    },
+    {
+      "e": "🫂"
+    },
+    {
+      "e": "👪"
+    },
+    {
+      "e": "🧑‍🧑‍🧒"
+    },
+    {
+      "e": "🧑‍🧑‍🧒‍🧒"
+    },
+    {
+      "e": "🧑‍🧒"
+    },
+    {
+      "e": "🧑‍🧒‍🧒"
+    },
+    {
+      "e": "👣"
+    },
+    {
+      "e": "🫆"
+    }
+  ]
+}
