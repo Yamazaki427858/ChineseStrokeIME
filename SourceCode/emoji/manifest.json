@@ -3,6 +3,7 @@
   "version": "0.9.0",
   "generated": "2026-06-18",
   "source": "unicode-emoji-json@0.9.0",
+  "max_unicode_version": 15,
   "grid": {
     "cols": 8,
     "rows": 5
@@ -13,35 +14,35 @@
       "label_zh": "笑臉",
       "icon": "😀",
       "file": "smileys_emotion.json",
-      "count": 171
+      "count": 166
     },
     {
       "slug": "people_body",
       "label_zh": "人物",
       "icon": "👤",
       "file": "people_body.json",
-      "count": 388
+      "count": 363
     },
     {
       "slug": "animals_nature",
       "label_zh": "動物",
       "icon": "🐻",
       "file": "animals_nature.json",
-      "count": 160
+      "count": 157
     },
     {
       "slug": "food_drink",
       "label_zh": "食物",
       "icon": "🍔",
       "file": "food_drink.json",
-      "count": 131
+      "count": 128
     },
     {
       "slug": "travel_places",
       "label_zh": "旅行",
       "icon": "✈️",
       "file": "travel_places.json",
-      "count": 219
+      "count": 218
     },
     {
       "slug": "activities",
@@ -55,21 +56,21 @@
       "label_zh": "物品",
       "icon": "💡",
       "file": "objects.json",
-      "count": 266
+      "count": 261
     },
     {
       "slug": "symbols",
       "label_zh": "符號",
       "icon": "🔣",
       "file": "symbols.json",
-      "count": 224
+      "count": 223
     },
     {
       "slug": "flags",
       "label_zh": "旗幟",
       "icon": "🏳️",
       "file": "flags.json",
-      "count": 270
+      "count": 269
     }
   ]
 }
