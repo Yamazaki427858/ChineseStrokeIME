@@ -74,10 +74,10 @@
 <br>
 <br>
 
-
-
 [👉 點此查看 中文筆劃輸入法 完整使用說明](http://github.com/Yamazaki427858/ChineseStrokeIME_Releases/blob/main/%E4%B8%AD%E6%96%87%E7%AD%86%E5%8A%83%E8%BC%B8%E5%85%A5%E6%B3%95%20%E4%BD%BF%E7%94%A8%E8%AA%AA%E6%98%8E.md)
 
+<br>
+<br>
 ### V3.3.0 新加入功能：
 
 ## 🖥 修復多螢幕相容問題
