@@ -166,7 +166,7 @@ suppress_version_update_reminder=1
 
 **下載與更新詞語庫**
 
-- 官方詞庫目錄（GitHub）：  
+- 詞庫目錄（GitHub）：  
   https://github.com/Yamazaki427858/ChineseStrokeIME/tree/ChineseStrokeIME/SourceCode/%E8%81%AF%E6%83%B3%E8%A9%9E%E5%BA%AB
 - 請下載其中的 **`word_phrases.txt`**，覆蓋或另存為本地 **`system\wordphrases.txt`**
 - 若本地尚無此檔且網路可用，程式啟動時也會嘗試從 GitHub 自動下載（檔名仍存為 `wordphrases.txt`）
