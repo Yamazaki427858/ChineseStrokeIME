@@ -10,7 +10,7 @@
 <br>
 <br>
 
-### 2026年7月最新版本： 中文筆劃輸入法 V3.3.1
+### 2026年8月最新版本： 中文筆劃輸入法 V3.3.2
 💾下載：https://github.com/Yamazaki427858/ChineseStrokeIME_Releases/releases
 
 
